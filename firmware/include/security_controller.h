@@ -1,0 +1,55 @@
+#ifndef SECURITY_CONTROLLER_H
+#define SECURITY_CONTROLLER_H
+
+#include <Preferences.h>
+#include "models.h"
+#include "sensors.h"
+#include "display_manager.h"
+#include "alarm_manager.h"
+#include "network_manager.h"
+#include "device_config_manager.h"
+
+class SecurityController {
+public:
+  void begin();
+  void update();
+
+private:
+  Sensors sensors;
+  DisplayManager display;
+  AlarmManager alarm;
+  NetworkManager network;
+  DeviceConfigManager deviceConfigManager;
+  Preferences preferences;
+
+  FirmwareConstants firmwareConstants;
+  ProvisionedConfig provisionedConfig;
+  SensorData sensorData;
+  SystemState systemState;
+
+  unsigned long lastSensorRead = 0;
+  unsigned long lastHeartbeat = 0;
+  unsigned long motionAlarmUntil = 0;
+
+  void processCommands(const String &cmd);
+  void handleAlarm(const String &reason);
+  void setArmedState(bool armed);
+  bool updateThresholds(float tempMin, float tempMax, float humidityMin, float humidityMax);
+  bool provisionDevice(const String &roomId, const String &roomName, const String &zoneType);
+  void loadPersistentState();
+  void clearPersistentState();
+  void saveArmedState();
+  void saveThresholdState();
+  bool isTemperatureOutOfRange() const;
+  bool isHumidityOutOfRange() const;
+  bool isMotionAlarmActive(unsigned long now) const;
+  String determineAlarmReason() const;
+  void clearAlarmState(bool publishStatusUpdate);
+  void resetAlarm(bool publishStatusUpdate);
+  void factoryResetDevice();
+  void logLocalAction(const String &eventName, const String &details);
+  static SecurityController *instance;
+  static void commandProxy(const String &cmd);
+};
+
+#endif

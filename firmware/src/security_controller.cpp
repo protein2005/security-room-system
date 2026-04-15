@@ -1,0 +1,469 @@
+#include "security_controller.h"
+#include "config.h"
+#include <ArduinoJson.h>
+#include <esp_system.h>
+
+SecurityController* SecurityController::instance = nullptr;
+
+void SecurityController::begin() {
+  instance = this;
+
+  Serial.begin(115200);
+
+  sensors.begin();
+  alarm.begin();
+
+  if (!display.begin()) {
+    Serial.println("OLED init failed");
+    while (true) {
+      delay(10);
+    }
+  }
+
+  display.showStartup();
+
+  deviceConfigManager.begin();
+  deviceConfigManager.load(firmwareConstants, provisionedConfig);
+
+  network.begin(firmwareConstants, provisionedConfig);
+  network.setCommandHandler(commandProxy);
+
+  systemState.offlineMode = false;
+  systemState.mqttConnected = false;
+  systemState.wifiConnected = false;
+  systemState.sensorFailure = false;
+  systemState.alarmActive = false;
+  systemState.alarmSilenced = false;
+  systemState.queuedEvents = 0;
+  systemState.tempMinThreshold = DEFAULT_TEMP_MIN_THRESHOLD;
+  systemState.tempMaxThreshold = DEFAULT_TEMP_MAX_THRESHOLD;
+  systemState.humidityMinThreshold = DEFAULT_HUMIDITY_MIN_THRESHOLD;
+  systemState.humidityMaxThreshold = DEFAULT_HUMIDITY_MAX_THRESHOLD;
+
+  loadPersistentState();
+
+  Serial.println("ESP32 Security System Start");
+  Serial.print("Device ID: ");
+  Serial.println(firmwareConstants.deviceId);
+  Serial.print("Device Type: ");
+  Serial.println(firmwareConstants.deviceType);
+  Serial.print("Firmware: ");
+  Serial.println(firmwareConstants.firmwareVersion);
+  Serial.print("Provisioned: ");
+  Serial.println(provisionedConfig.isProvisioned ? "YES" : "NO");
+  if (provisionedConfig.isProvisioned) {
+    Serial.print("Room ID: ");
+    Serial.println(provisionedConfig.roomId);
+    Serial.print("Room Name: ");
+    Serial.println(provisionedConfig.roomName);
+    Serial.print("Zone Type: ");
+    Serial.println(provisionedConfig.zoneType);
+  }
+}
+
+void SecurityController::update() {
+  network.update(systemState);
+  alarm.update();
+
+  if (sensors.isArmButtonPressed()) {
+    if (!systemState.isArmed) {
+      setArmedState(true);
+
+      Serial.println("Local action: ARMED");
+      network.publishStatus("ARMED", systemState);
+      if (provisionedConfig.isProvisioned) {
+        logLocalAction("LOCAL_ARM", "Physical ARM button pressed");
+      }
+    } else {
+      Serial.println("Local action blocked: DISARM is remote-only");
+      if (provisionedConfig.isProvisioned) {
+        logLocalAction("LOCAL_DISARM_BLOCKED", "ARM button press ignored while already armed");
+      }
+    }
+  }
+
+  if (sensors.isResetAlarmButtonPressed()) {
+    if (provisionedConfig.isProvisioned) {
+      logLocalAction("LOCAL_ALARM_SILENCE", "Physical RESET ALARM button pressed");
+    }
+    resetAlarm(true);
+  }
+
+  unsigned long now = millis();
+
+  if (now - lastSensorRead >= SENSOR_READ_INTERVAL) {
+    lastSensorRead = now;
+
+    sensorData = sensors.readData();
+    systemState.sensorFailure = !sensorData.dhtOk;
+
+    if (systemState.isArmed && sensorData.motionDetected) {
+      motionAlarmUntil = now + MOTION_ALARM_HOLD_MS;
+    }
+
+    String currentAlarmReason = determineAlarmReason();
+    if (currentAlarmReason.isEmpty()) {
+      clearAlarmState(true);
+    } else if (!systemState.alarmActive) {
+      handleAlarm(currentAlarmReason);
+    } else if (currentAlarmReason != systemState.activeAlarmReason) {
+      systemState.alarmSilenced = false;
+      handleAlarm(currentAlarmReason);
+    }
+
+    if (sensorData.dhtOk) {
+      Serial.print("[");
+      Serial.print(firmwareConstants.deviceId);
+      Serial.print("] T:");
+      Serial.print(sensorData.temperature, 1);
+      Serial.print("C H:");
+      Serial.print(sensorData.humidity, 1);
+      Serial.print("% | Motion:");
+      Serial.print(sensorData.motionDetected);
+      Serial.print(" | Door:");
+      Serial.print(sensorData.doorOpen);
+      Serial.print(" | Armed:");
+      Serial.println(systemState.isArmed);
+    } else {
+      Serial.print("[");
+      Serial.print(firmwareConstants.deviceId);
+      Serial.println("] DHT22 read error");
+    }
+
+    display.showSystemState(
+      sensorData,
+      systemState,
+      systemState.alarmActive
+        ? (systemState.alarmSilenced ? "ALARM: SILENCED" : "ALARM: ACTIVE")
+        : (provisionedConfig.isProvisioned ? (systemState.offlineMode ? "OFFLINE MODE" : "SYSTEM OK") : "UNPROVISIONED")
+    );
+
+    if (provisionedConfig.isProvisioned) {
+      network.publishTelemetry(sensorData, systemState);
+    }
+  }
+
+  if (now - lastHeartbeat >= HEARTBEAT_INTERVAL) {
+    lastHeartbeat = now;
+    network.publishHeartbeat(systemState);
+  }
+}
+
+void SecurityController::handleAlarm(const String &reason) {
+  systemState.alarmActive = true;
+  bool reasonChanged = systemState.activeAlarmReason != reason;
+  systemState.alarmSilenced = false;
+  systemState.activeAlarmReason = reason;
+
+  Serial.print("!!! ALARM [");
+  Serial.print(firmwareConstants.deviceId);
+  Serial.print("]: ");
+  Serial.print(reason);
+  Serial.println(" !!!");
+
+  alarm.setVisualAlert(true);
+  display.showAlarm("ALARM ACTIVE", reason);
+  alarm.startSound();
+
+  if (reasonChanged && provisionedConfig.isProvisioned) {
+    network.publishAlarm(reason, systemState);
+    network.publishStatus("ALARM", systemState);
+  }
+}
+
+void SecurityController::processCommands(const String &cmd) {
+  Serial.print("MQTT CMD [");
+  Serial.print(firmwareConstants.deviceId);
+  Serial.print("]: ");
+  Serial.println(cmd);
+
+  JsonDocument doc;
+  DeserializationError error = deserializeJson(doc, cmd);
+  if (error) {
+    Serial.print("Command rejected: invalid JSON, ");
+    Serial.println(error.c_str());
+    return;
+  }
+
+  const char *token = "";
+  if (doc["token"].is<const char*>()) {
+    token = doc["token"];
+  } else if (doc["deviceToken"].is<const char*>()) {
+    token = doc["deviceToken"];
+  }
+  if (String(token) != firmwareConstants.deviceToken) {
+    Serial.println("Command rejected: invalid token");
+    return;
+  }
+
+  const char *targetDeviceId = firmwareConstants.deviceId.c_str();
+  if (doc["deviceId"].is<const char*>()) {
+    targetDeviceId = doc["deviceId"];
+  }
+  if (String(targetDeviceId) != firmwareConstants.deviceId) {
+    Serial.println("Command ignored: wrong deviceId");
+    return;
+  }
+
+  if (provisionedConfig.isProvisioned && doc["roomId"].is<const char*>()) {
+    String targetRoom = doc["roomId"].as<String>();
+    if (!targetRoom.isEmpty() && targetRoom != provisionedConfig.roomId) {
+      Serial.println("Command ignored: wrong roomId");
+      return;
+    }
+  }
+
+  const char *action = "";
+  if (doc["action"].is<const char*>()) {
+    action = doc["action"];
+  }
+
+  if (strcmp(action, "PROVISION") == 0) {
+    String roomId = doc["roomId"].is<const char*>() ? doc["roomId"].as<String>() : "";
+    String roomName = doc["roomName"].is<const char*>() ? doc["roomName"].as<String>() : "";
+    String zoneType = doc["zoneType"].is<const char*>() ? doc["zoneType"].as<String>() : "";
+
+    if (provisionDevice(roomId, roomName, zoneType)) {
+      network.publishEvent("DEVICE_PROVISIONED", "remote", "Device was provisioned from backend", systemState);
+      network.publishStatus("PROVISIONED", systemState);
+    } else {
+      Serial.println("Command rejected: invalid provisioning payload");
+    }
+  } else if (strcmp(action, "ARM") == 0) {
+    setArmedState(true);
+    network.publishStatus("ARMED", systemState);
+  } else if (strcmp(action, "DISARM") == 0) {
+    setArmedState(false);
+    resetAlarm(false);
+    clearAlarmState(false);
+    network.publishStatus("DISARMED", systemState);
+  } else if (strcmp(action, "RESET_ALARM") == 0) {
+    resetAlarm(true);
+  } else if (strcmp(action, "FACTORY_RESET") == 0) {
+    factoryResetDevice();
+  } else if (strcmp(action, "SET_THRESHOLDS") == 0) {
+    float tempMin = !doc["tempMin"].isNull() ? doc["tempMin"].as<float>() : systemState.tempMinThreshold;
+    float tempMax = !doc["tempMax"].isNull() ? doc["tempMax"].as<float>() : systemState.tempMaxThreshold;
+    float humidityMin = !doc["humidityMin"].isNull() ? doc["humidityMin"].as<float>() : systemState.humidityMinThreshold;
+    float humidityMax = !doc["humidityMax"].isNull() ? doc["humidityMax"].as<float>() : systemState.humidityMaxThreshold;
+
+    if (doc["thresholds"].is<JsonObjectConst>()) {
+      JsonObjectConst thresholds = doc["thresholds"].as<JsonObjectConst>();
+      if (!thresholds["tempMin"].isNull()) {
+        tempMin = thresholds["tempMin"].as<float>();
+      }
+      if (!thresholds["tempMax"].isNull()) {
+        tempMax = thresholds["tempMax"].as<float>();
+      }
+      if (!thresholds["humidityMin"].isNull()) {
+        humidityMin = thresholds["humidityMin"].as<float>();
+      }
+      if (!thresholds["humidityMax"].isNull()) {
+        humidityMax = thresholds["humidityMax"].as<float>();
+      }
+    }
+
+    if (updateThresholds(tempMin, tempMax, humidityMin, humidityMax)) {
+      network.publishStatus("THRESHOLDS_UPDATED", systemState);
+    } else {
+      Serial.println("Command rejected: invalid threshold values");
+    }
+  } else {
+    Serial.println("Command ignored: unsupported action");
+  }
+}
+
+void SecurityController::setArmedState(bool armed) {
+  if (systemState.isArmed == armed) {
+    return;
+  }
+
+  systemState.isArmed = armed;
+  if (!armed) {
+    motionAlarmUntil = 0;
+  }
+  saveArmedState();
+}
+
+bool SecurityController::updateThresholds(float tempMin, float tempMax, float humidityMin, float humidityMax) {
+  if (tempMin >= tempMax || humidityMin >= humidityMax) {
+    return false;
+  }
+
+  if (tempMin < -40.0f || tempMax > 125.0f || humidityMin < 0.0f || humidityMax > 100.0f) {
+    return false;
+  }
+
+  systemState.tempMinThreshold = tempMin;
+  systemState.tempMaxThreshold = tempMax;
+  systemState.humidityMinThreshold = humidityMin;
+  systemState.humidityMaxThreshold = humidityMax;
+  saveThresholdState();
+
+  Serial.print("Thresholds updated: T[");
+  Serial.print(systemState.tempMinThreshold, 1);
+  Serial.print(", ");
+  Serial.print(systemState.tempMaxThreshold, 1);
+  Serial.print("] H[");
+  Serial.print(systemState.humidityMinThreshold, 1);
+  Serial.print(", ");
+  Serial.print(systemState.humidityMaxThreshold, 1);
+  Serial.println("]");
+  return true;
+}
+
+bool SecurityController::provisionDevice(const String &roomId, const String &roomName, const String &zoneType) {
+  if (roomId.isEmpty() || roomName.isEmpty() || zoneType.isEmpty()) {
+    return false;
+  }
+
+  provisionedConfig.roomId = roomId;
+  provisionedConfig.roomName = roomName;
+  provisionedConfig.zoneType = zoneType;
+  provisionedConfig.isProvisioned = true;
+  deviceConfigManager.saveProvisionedConfig(provisionedConfig);
+  network.refreshTopics();
+
+  Serial.print("Device provisioned for room: ");
+  Serial.println(provisionedConfig.roomId);
+  return true;
+}
+
+void SecurityController::loadPersistentState() {
+  preferences.begin("security", false);
+  systemState.isArmed = preferences.getBool("isArmed", false);
+  systemState.tempMinThreshold = preferences.getFloat("tempMin", DEFAULT_TEMP_MIN_THRESHOLD);
+  systemState.tempMaxThreshold = preferences.getFloat("tempMax", DEFAULT_TEMP_MAX_THRESHOLD);
+  systemState.humidityMinThreshold = preferences.getFloat("humMin", DEFAULT_HUMIDITY_MIN_THRESHOLD);
+  systemState.humidityMaxThreshold = preferences.getFloat("humMax", DEFAULT_HUMIDITY_MAX_THRESHOLD);
+}
+
+void SecurityController::clearPersistentState() {
+  preferences.clear();
+}
+
+void SecurityController::saveArmedState() {
+  preferences.putBool("isArmed", systemState.isArmed);
+}
+
+void SecurityController::saveThresholdState() {
+  preferences.putFloat("tempMin", systemState.tempMinThreshold);
+  preferences.putFloat("tempMax", systemState.tempMaxThreshold);
+  preferences.putFloat("humMin", systemState.humidityMinThreshold);
+  preferences.putFloat("humMax", systemState.humidityMaxThreshold);
+}
+
+bool SecurityController::isTemperatureOutOfRange() const {
+  return sensorData.temperature < systemState.tempMinThreshold ||
+         sensorData.temperature > systemState.tempMaxThreshold;
+}
+
+bool SecurityController::isHumidityOutOfRange() const {
+  return sensorData.humidity < systemState.humidityMinThreshold ||
+         sensorData.humidity > systemState.humidityMaxThreshold;
+}
+
+String SecurityController::determineAlarmReason() const {
+  unsigned long now = millis();
+
+  if (!sensorData.dhtOk) {
+    return "SENSOR_FAILURE";
+  }
+
+  if (isTemperatureOutOfRange()) {
+    return "TEMP_OUT_OF_RANGE";
+  }
+
+  if (isHumidityOutOfRange()) {
+    return "HUMIDITY_OUT_OF_RANGE";
+  }
+
+  if (systemState.isArmed) {
+    if (sensorData.doorOpen) {
+      return "DOOR_OPEN";
+    }
+
+    if (isMotionAlarmActive(now)) {
+      return "MOTION";
+    }
+  }
+
+  return "";
+}
+
+bool SecurityController::isMotionAlarmActive(unsigned long now) const {
+  if (motionAlarmUntil == 0) {
+    return false;
+  }
+
+  return static_cast<long>(motionAlarmUntil - now) > 0;
+}
+
+void SecurityController::clearAlarmState(bool publishStatusUpdate) {
+  if (!systemState.alarmActive && !systemState.alarmSilenced && systemState.activeAlarmReason.isEmpty()) {
+    return;
+  }
+
+  alarm.stopAll();
+  systemState.alarmActive = false;
+  systemState.alarmSilenced = false;
+  systemState.activeAlarmReason = "";
+
+  if (publishStatusUpdate) {
+    if (provisionedConfig.isProvisioned) {
+      network.publishStatus("ALARM_CLEARED", systemState);
+    }
+  }
+}
+
+void SecurityController::resetAlarm(bool publishStatusUpdate) {
+  if (!systemState.alarmActive) {
+    alarm.stopSound();
+    if (publishStatusUpdate) {
+      if (provisionedConfig.isProvisioned) {
+        network.publishStatus("ALARM_RESET", systemState);
+      }
+    }
+    return;
+  }
+
+  alarm.stopSound();
+  alarm.setVisualAlert(true);
+  systemState.alarmSilenced = true;
+
+  display.showAlarm("ALARM SILENCED", systemState.activeAlarmReason);
+
+  if (publishStatusUpdate) {
+    if (provisionedConfig.isProvisioned) {
+      network.publishStatus("ALARM_RESET", systemState);
+    }
+  }
+}
+
+void SecurityController::logLocalAction(const String &eventName, const String &details) {
+  network.publishEvent(eventName, "local", details, systemState);
+}
+
+void SecurityController::factoryResetDevice() {
+  Serial.println("Factory reset requested");
+
+  if (provisionedConfig.isProvisioned) {
+    network.publishEvent("FACTORY_RESET", "remote", "Factory reset requested", systemState);
+    network.publishStatus("FACTORY_RESET", systemState);
+  }
+
+  alarm.stopAll();
+  motionAlarmUntil = 0;
+
+  clearPersistentState();
+  deviceConfigManager.clearAll();
+
+  delay(500);
+  ESP.restart();
+}
+
+void SecurityController::commandProxy(const String &cmd) {
+  if (instance != nullptr) {
+    instance->processCommands(cmd);
+  }
+}
