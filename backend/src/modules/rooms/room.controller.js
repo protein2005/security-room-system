@@ -1,4 +1,5 @@
 const roomService = require("./room.service");
+const { sendRoomCommand } = require("../commands/command.service");
 
 function validateRoomPayload(body, { partial = false } = {}) {
   const requiredFields = ["roomId", "roomName", "zoneType"];
@@ -151,6 +152,60 @@ async function getRoomEvents(req, res, next) {
   }
 }
 
+async function armRoom(req, res, next) {
+  try {
+    const result = await sendRoomCommand(req.params.roomId, "ARM");
+    res.status(202).json(result);
+  } catch (error) {
+    next(error);
+  }
+}
+
+async function disarmRoom(req, res, next) {
+  try {
+    const result = await sendRoomCommand(req.params.roomId, "DISARM");
+    res.status(202).json(result);
+  } catch (error) {
+    next(error);
+  }
+}
+
+async function resetRoomAlarm(req, res, next) {
+  try {
+    const result = await sendRoomCommand(req.params.roomId, "RESET_ALARM");
+    res.status(202).json(result);
+  } catch (error) {
+    next(error);
+  }
+}
+
+async function updateRoomThresholds(req, res, next) {
+  try {
+    const { tempMin, tempMax, humidityMin, humidityMax } = req.body;
+
+    if (
+      [tempMin, tempMax, humidityMin, humidityMax].some(
+        (value) => typeof value !== "number" || Number.isNaN(value)
+      )
+    ) {
+      return res.status(400).json({
+        message: "tempMin, tempMax, humidityMin and humidityMax must be numbers",
+      });
+    }
+
+    const result = await sendRoomCommand(req.params.roomId, "SET_THRESHOLDS", {
+      tempMin,
+      tempMax,
+      humidityMin,
+      humidityMax,
+    });
+
+    res.status(202).json(result);
+  } catch (error) {
+    next(error);
+  }
+}
+
 module.exports = {
   getRooms,
   getRoomByRoomId,
@@ -160,4 +215,8 @@ module.exports = {
   getRoomTelemetry,
   getRoomAlarms,
   getRoomEvents,
+  armRoom,
+  disarmRoom,
+  resetRoomAlarm,
+  updateRoomThresholds,
 };
