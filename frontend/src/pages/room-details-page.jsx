@@ -10,6 +10,7 @@ import {
   disarmRoom,
   fetchRoom,
   fetchRoomAlarms,
+  fetchRoomCommands,
   fetchRoomEvents,
   fetchRoomState,
   fetchRoomTelemetry,
@@ -93,11 +94,18 @@ export function RoomDetailsPage() {
     enabled: Boolean(roomId),
   });
 
+  const commandsQuery = useQuery({
+    queryKey: ["room-commands", roomId],
+    queryFn: () => fetchRoomCommands(roomId, { limit: 10 }),
+    enabled: Boolean(roomId),
+  });
+
   const room = roomQuery.data;
   const state = stateQuery.data;
   const telemetry = telemetryQuery.data || [];
   const alarms = alarmsQuery.data || [];
   const events = eventsQuery.data || [];
+  const commands = commandsQuery.data || [];
 
   useEffect(() => {
     if (!state) return;
@@ -116,9 +124,11 @@ export function RoomDetailsPage() {
     queryClient.invalidateQueries({ queryKey: ["room-telemetry", roomId] });
     queryClient.invalidateQueries({ queryKey: ["room-alarms", roomId] });
     queryClient.invalidateQueries({ queryKey: ["room-events", roomId] });
+    queryClient.invalidateQueries({ queryKey: ["room-commands", roomId] });
     queryClient.invalidateQueries({ queryKey: ["rooms"] });
     queryClient.invalidateQueries({ queryKey: ["alarms"] });
     queryClient.invalidateQueries({ queryKey: ["events"] });
+    queryClient.invalidateQueries({ queryKey: ["commands"] });
   };
 
   const actionMutation = useMutation({
@@ -132,13 +142,10 @@ export function RoomDetailsPage() {
     onSuccess: (_data, variables) => {
       setPendingAction(null);
       refreshRoom();
-      toast.success("Команду відправлено", `${variables.action} для кімнати ${roomId}`);
+      toast.success("Команду відправлено", `${getActionCodeLabel(variables.action)} для кімнати ${roomId}`);
     },
     onError: (error) => {
-      toast.error(
-        "Не вдалося виконати команду",
-        error?.response?.data?.message || "Спробуй ще раз."
-      );
+      toast.error("Не вдалося виконати команду", error?.response?.data?.message || "Спробуй ще раз.");
     },
   });
 
@@ -147,14 +154,16 @@ export function RoomDetailsPage() {
     stateQuery.isLoading ||
     telemetryQuery.isLoading ||
     alarmsQuery.isLoading ||
-    eventsQuery.isLoading;
+    eventsQuery.isLoading ||
+    commandsQuery.isLoading;
 
   const isError =
     roomQuery.isError ||
     stateQuery.isError ||
     telemetryQuery.isError ||
     alarmsQuery.isError ||
-    eventsQuery.isError;
+    eventsQuery.isError ||
+    commandsQuery.isError;
 
   if (isLoading) {
     return (
@@ -177,6 +186,7 @@ export function RoomDetailsPage() {
             telemetryQuery.refetch();
             alarmsQuery.refetch();
             eventsQuery.refetch();
+            commandsQuery.refetch();
           }}
         />
       </div>
@@ -416,6 +426,44 @@ export function RoomDetailsPage() {
         </Card>
       </div>
 
+      <Card>
+        <CardHeader>
+          <CardTitle>Історія команд</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {commands.length === 0 ? (
+            <EmptyState
+              title="Команд для цієї кімнати ще немає"
+              description="Після ARM, DISARM, RESET_ALARM або зміни порогів команди з'являться тут."
+            />
+          ) : (
+            commands.map((command) => (
+              <div
+                key={command._id}
+                className="grid gap-3 rounded-2xl border border-white/70 bg-white/80 p-4 md:grid-cols-[1fr,1fr,auto] md:items-center"
+              >
+                <div>
+                  <p className="font-semibold">{getActionCodeLabel(command.action)}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {command.requestedBy?.name || command.requestedBy?.email || "Невідомий користувач"}
+                  </p>
+                </div>
+                <div className="text-sm text-muted-foreground">
+                  <p>Статус: {getCommandStatusLabel(command.status)}</p>
+                  <p>Час: {formatDateTime(command.publishedAt || command.createdAt)}</p>
+                </div>
+                <div className="flex justify-end">
+                  <StatusBadge
+                    online={command.status === "published"}
+                    text={getCommandStatusLabel(command.status)}
+                  />
+                </div>
+              </div>
+            ))
+          )}
+        </CardContent>
+      </Card>
+
       <ConfirmDialog
         open={Boolean(pendingAction)}
         title="Підтвердити дію"
@@ -465,4 +513,20 @@ function getActionLabel(action) {
   if (action === "RESET_ALARM") return "скидання тривоги";
   if (action === "SET_THRESHOLDS") return "збереження порогів";
   return "дію";
+}
+
+function getActionCodeLabel(action) {
+  if (action === "ARM") return "ARM";
+  if (action === "DISARM") return "DISARM";
+  if (action === "RESET_ALARM") return "RESET_ALARM";
+  if (action === "SET_THRESHOLDS") return "SET_THRESHOLDS";
+  if (action === "PROVISION") return "PROVISION";
+  if (action === "FACTORY_RESET") return "FACTORY_RESET";
+  return action;
+}
+
+function getCommandStatusLabel(status) {
+  if (status === "published") return "Відправлено";
+  if (status === "failed") return "Помилка";
+  return "Очікує";
 }

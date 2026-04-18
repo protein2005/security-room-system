@@ -37,6 +37,11 @@ export async function fetchRoomEvents(roomId, params = {}) {
   return response.data;
 }
 
+export async function fetchRoomCommands(roomId, params = {}) {
+  const response = await http.get(`/rooms/${roomId}/commands`, { params });
+  return response.data;
+}
+
 export async function armRoom(roomId) {
   const response = await http.post(`/rooms/${roomId}/arm`);
   return response.data;

@@ -1,10 +1,17 @@
 import { useEffect } from "react";
 import { io } from "socket.io-client";
 
-const socket = io("http://localhost:4000");
+import { useAuth } from "@/features/auth/auth-provider";
 
 export function RealtimeProvider({ children, queryClient }) {
+  const { isAuthenticated } = useAuth();
+
   useEffect(() => {
+    if (!isAuthenticated) {
+      return undefined;
+    }
+
+    const socket = io("http://localhost:4000");
     const invalidateDashboard = () => queryClient.invalidateQueries({ queryKey: ["dashboard"] });
     const invalidateDevices = () => {
       queryClient.invalidateQueries({ queryKey: ["devices"] });
@@ -45,8 +52,9 @@ export function RealtimeProvider({ children, queryClient }) {
       socket.off("room:telemetry", invalidateTelemetry);
       socket.off("alarm:triggered", invalidateAlarms);
       socket.off("event:created", invalidateEvents);
+      socket.disconnect();
     };
-  }, [queryClient]);
+  }, [isAuthenticated, queryClient]);
 
   return children;
 }

@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useState } from "react";
 
+import { AuthProvider } from "@/features/auth/auth-provider";
 import { ToastProvider } from "@/shared/feedback/toast-provider";
 import { RealtimeProvider } from "@/shared/realtime/realtime-provider";
 
@@ -20,9 +21,11 @@ export function AppProviders({ children }) {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <ToastProvider>
-        <RealtimeProvider queryClient={queryClient}>{children}</RealtimeProvider>
-      </ToastProvider>
+      <AuthProvider>
+        <ToastProvider>
+          <RealtimeProvider queryClient={queryClient}>{children}</RealtimeProvider>
+        </ToastProvider>
+      </AuthProvider>
     </QueryClientProvider>
   );
 }
