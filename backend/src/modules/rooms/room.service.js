@@ -38,11 +38,28 @@ async function updateRoom(roomId, updates) {
   ).lean();
 }
 
+async function clearRoomDeviceAssignment(roomId) {
+  return Room.findOneAndUpdate(
+    { roomId },
+    {
+      $set: {
+        deviceId: "",
+        armed: false,
+        alarmActive: false,
+        alarmReason: "",
+        alarmSilenced: false,
+      },
+    },
+    { new: true }
+  ).lean();
+}
+
 module.exports = {
   listRooms,
   getRoomByRoomId,
   createRoom,
   updateRoom,
+  clearRoomDeviceAssignment,
   getRoomCurrentState,
   listTelemetryByRoomId,
   listRoomAlarms: (roomId, options) => listAlarms({ roomId, ...options }),

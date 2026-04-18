@@ -6,6 +6,7 @@ const { connectDatabase } = require("./config/db");
 const { createSocketServer } = require("./sockets/socket.server");
 const { connectMqtt } = require("./mqtt/mqtt.client");
 const { startDeviceOfflineJob } = require("./jobs/device-offline.job");
+const { ensureAdminUser } = require("./modules/users/user.service");
 const { logger } = require("./utils/logger");
 
 async function bootstrap() {
@@ -16,6 +17,7 @@ async function bootstrap() {
   app.locals.io = io;
 
   await connectDatabase();
+  await ensureAdminUser();
   await connectMqtt({ io });
   startDeviceOfflineJob({ io });
 

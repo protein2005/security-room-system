@@ -32,6 +32,8 @@ async function upsertDeviceFromPayload(payload) {
     return null;
   }
 
+  const previousDevice = await Device.findOne({ deviceId: payload.deviceId }).lean();
+
   const device = await Device.findOneAndUpdate(
     { deviceId: payload.deviceId },
     {
@@ -53,6 +55,26 @@ async function upsertDeviceFromPayload(payload) {
       setDefaultsOnInsert: true,
     }
   ).lean();
+
+  if (
+    previousDevice?.currentRoomId &&
+    !payload.roomId &&
+    payload.provisioned === false &&
+    previousDevice.currentRoomId !== payload.roomId
+  ) {
+    await Room.findOneAndUpdate(
+      { roomId: previousDevice.currentRoomId },
+      {
+        $set: {
+          deviceId: "",
+          armed: false,
+          alarmActive: false,
+          alarmReason: "",
+          alarmSilenced: false,
+        },
+      }
+    );
+  }
 
   return device;
 }

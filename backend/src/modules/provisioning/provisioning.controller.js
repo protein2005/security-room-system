@@ -11,6 +11,7 @@ async function provisionDevice(req, res, next) {
     const result = await provisioningService.provisionDevice({
       deviceId: req.params.deviceId,
       roomId,
+      requestedBy: req.auth,
     });
 
     res.status(202).json(result);

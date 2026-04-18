@@ -1,12 +1,11 @@
 const express = require("express");
 
-const alarmController = require("./alarm.controller");
+const authController = require("./auth.controller");
 const { requireAuth } = require("../../middleware/auth.middleware");
 
 const router = express.Router();
 
-router.use(requireAuth);
-
-router.get("/", alarmController.getAlarms);
+router.post("/login", authController.login);
+router.get("/me", requireAuth, authController.me);
 
 module.exports = router;

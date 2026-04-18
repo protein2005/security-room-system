@@ -1,9 +1,8 @@
 const deviceService = require("../devices/device.service");
 const roomService = require("../rooms/room.service");
-const { publishMqttMessage } = require("../../mqtt/mqtt.client");
-const { env } = require("../../config/env");
+const { sendDeviceCommand } = require("../commands/command.service");
 
-async function provisionDevice({ deviceId, roomId }) {
+async function provisionDevice({ deviceId, roomId, requestedBy }) {
   const device = await deviceService.getDeviceByDeviceId(deviceId);
 
   if (!device) {
@@ -26,26 +25,24 @@ async function provisionDevice({ deviceId, roomId }) {
     throw error;
   }
 
-  const topic = `${env.mqttTopicRoot}/devices/${deviceId}/cmd`;
-  const payload = {
+  const result = await sendDeviceCommand(
     deviceId,
-    deviceToken: env.mqttDeviceToken,
-    action: "PROVISION",
-    roomId: room.roomId,
-    roomName: room.roomName,
-    zoneType: room.zoneType,
-  };
+    "PROVISION",
+    {
+      roomId: room.roomId,
+      roomName: room.roomName,
+      zoneType: room.zoneType,
+    },
+    requestedBy
+  );
 
-  await publishMqttMessage(topic, payload);
   await roomService.updateRoom(room.roomId, { deviceId });
   await deviceService.assignDeviceToRoom({ deviceId, roomId: room.roomId });
 
   return {
-    success: true,
-    topic,
-    payload,
-    deviceId,
+    ...result,
     roomId: room.roomId,
+    deviceId,
   };
 }
 

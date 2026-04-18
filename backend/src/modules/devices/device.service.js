@@ -38,9 +38,23 @@ async function assignDeviceToRoom({ deviceId, roomId }) {
   ).lean();
 }
 
+async function clearDeviceRoomAssignment(deviceId) {
+  return Device.findOneAndUpdate(
+    { deviceId },
+    {
+      $set: {
+        currentRoomId: "",
+        provisioned: false,
+      },
+    },
+    { new: true }
+  ).lean();
+}
+
 module.exports = {
   listDevices,
   listUnprovisionedDevices,
   getDeviceByDeviceId,
   assignDeviceToRoom,
+  clearDeviceRoomAssignment,
 };

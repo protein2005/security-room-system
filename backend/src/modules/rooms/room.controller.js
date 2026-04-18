@@ -1,5 +1,5 @@
 const roomService = require("./room.service");
-const { sendRoomCommand } = require("../commands/command.service");
+const { listCommands, sendRoomCommand } = require("../commands/command.service");
 
 function validateRoomPayload(body, { partial = false } = {}) {
   const requiredFields = ["roomId", "roomName", "zoneType"];
@@ -152,9 +152,29 @@ async function getRoomEvents(req, res, next) {
   }
 }
 
+async function getRoomCommands(req, res, next) {
+  try {
+    const room = await roomService.getRoomByRoomId(req.params.roomId);
+
+    if (!room) {
+      return res.status(404).json({ message: "Room not found" });
+    }
+
+    const limit = Number(req.query.limit || 100);
+    const commands = await listCommands({
+      targetRoomId: req.params.roomId,
+      limit: Number.isFinite(limit) ? Math.min(Math.max(limit, 1), 500) : 100,
+    });
+
+    res.json(commands);
+  } catch (error) {
+    next(error);
+  }
+}
+
 async function armRoom(req, res, next) {
   try {
-    const result = await sendRoomCommand(req.params.roomId, "ARM");
+    const result = await sendRoomCommand(req.params.roomId, "ARM", {}, req.auth);
     res.status(202).json(result);
   } catch (error) {
     next(error);
@@ -163,7 +183,7 @@ async function armRoom(req, res, next) {
 
 async function disarmRoom(req, res, next) {
   try {
-    const result = await sendRoomCommand(req.params.roomId, "DISARM");
+    const result = await sendRoomCommand(req.params.roomId, "DISARM", {}, req.auth);
     res.status(202).json(result);
   } catch (error) {
     next(error);
@@ -172,7 +192,7 @@ async function disarmRoom(req, res, next) {
 
 async function resetRoomAlarm(req, res, next) {
   try {
-    const result = await sendRoomCommand(req.params.roomId, "RESET_ALARM");
+    const result = await sendRoomCommand(req.params.roomId, "RESET_ALARM", {}, req.auth);
     res.status(202).json(result);
   } catch (error) {
     next(error);
@@ -193,12 +213,17 @@ async function updateRoomThresholds(req, res, next) {
       });
     }
 
-    const result = await sendRoomCommand(req.params.roomId, "SET_THRESHOLDS", {
-      tempMin,
-      tempMax,
-      humidityMin,
-      humidityMax,
-    });
+    const result = await sendRoomCommand(
+      req.params.roomId,
+      "SET_THRESHOLDS",
+      {
+        tempMin,
+        tempMax,
+        humidityMin,
+        humidityMax,
+      },
+      req.auth
+    );
 
     res.status(202).json(result);
   } catch (error) {
@@ -215,6 +240,7 @@ module.exports = {
   getRoomTelemetry,
   getRoomAlarms,
   getRoomEvents,
+  getRoomCommands,
   armRoom,
   disarmRoom,
   resetRoomAlarm,
