@@ -41,7 +41,7 @@ const commandSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ["pending", "published", "failed"],
+      enum: ["pending", "published", "acknowledged", "failed"],
       default: "pending",
       index: true,
     },
@@ -56,6 +56,40 @@ const commandSchema = new mongoose.Schema(
     publishedAt: {
       type: Date,
       default: null,
+    },
+    acknowledgedAt: {
+      type: Date,
+      default: null,
+    },
+    outcome: {
+      matchedBy: {
+        type: String,
+        default: "",
+      },
+      resultStatus: {
+        type: String,
+        default: "",
+      },
+      resultEventName: {
+        type: String,
+        default: "",
+      },
+      source: {
+        type: String,
+        default: "",
+      },
+      details: {
+        type: String,
+        default: "",
+      },
+      correlationKey: {
+        type: String,
+        default: "",
+      },
+      matchedAt: {
+        type: Date,
+        default: null,
+      },
     },
   },
   {

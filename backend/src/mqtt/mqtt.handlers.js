@@ -8,6 +8,10 @@ const {
 const { createEventEntry } = require("../modules/events/event.service");
 const { createTelemetryEntry } = require("../modules/telemetry/telemetry.service");
 const { upsertRoomCurrentState } = require("../modules/room-current-state/room-current-state.service");
+const {
+  acknowledgeCommandFromEvent,
+  acknowledgeCommandFromStatus,
+} = require("../modules/commands/command-outcome.service");
 const { logger } = require("../utils/logger");
 
 function isDeviceOnlineFromPayload(payload) {
@@ -26,13 +30,58 @@ function isDeviceOnlineFromPayload(payload) {
   return true;
 }
 
+function shouldDetachPreviousRoom(payload, previousDevice) {
+  if (!previousDevice?.currentRoomId) {
+    return false;
+  }
+
+  if (payload.roomId && payload.roomId === previousDevice.currentRoomId) {
+    return false;
+  }
+
+  return (
+    payload.provisioned === false ||
+    payload.status === "UNPROVISIONED" ||
+    payload.status === "FACTORY_RESET" ||
+    payload.eventName === "FACTORY_RESET"
+  );
+}
+
+async function clearRoomBinding(roomId) {
+  await Room.findOneAndUpdate(
+    { roomId },
+    {
+      $set: {
+        deviceId: "",
+        armed: false,
+        alarmActive: false,
+        alarmReason: "",
+        alarmSilenced: false,
+      },
+    }
+  );
+
+  return upsertRoomCurrentState(roomId, {
+    deviceId: "",
+    armed: false,
+    alarmActive: false,
+    alarmReason: "",
+    alarmSilenced: false,
+    offline: false,
+    sensorFailure: false,
+    wifiOk: false,
+    mqttOk: false,
+  });
+}
+
 async function upsertDeviceFromPayload(payload) {
   if (!payload.deviceId) {
     logger.warn("Skipping MQTT payload without deviceId");
-    return null;
+    return { device: null, detachedRoomState: null };
   }
 
   const previousDevice = await Device.findOne({ deviceId: payload.deviceId }).lean();
+  let detachedRoomState = null;
 
   const device = await Device.findOneAndUpdate(
     { deviceId: payload.deviceId },
@@ -56,27 +105,11 @@ async function upsertDeviceFromPayload(payload) {
     }
   ).lean();
 
-  if (
-    previousDevice?.currentRoomId &&
-    !payload.roomId &&
-    payload.provisioned === false &&
-    previousDevice.currentRoomId !== payload.roomId
-  ) {
-    await Room.findOneAndUpdate(
-      { roomId: previousDevice.currentRoomId },
-      {
-        $set: {
-          deviceId: "",
-          armed: false,
-          alarmActive: false,
-          alarmReason: "",
-          alarmSilenced: false,
-        },
-      }
-    );
+  if (shouldDetachPreviousRoom(payload, previousDevice)) {
+    detachedRoomState = await clearRoomBinding(previousDevice.currentRoomId);
   }
 
-  return device;
+  return { device, detachedRoomState };
 }
 
 async function syncProvisioningState(payload) {
@@ -126,7 +159,8 @@ async function syncProvisioningState(payload) {
 }
 
 async function handleStatusMessage({ payload, io }) {
-  const device = await upsertDeviceFromPayload(payload);
+  const command = await acknowledgeCommandFromStatus(payload);
+  const { device, detachedRoomState } = await upsertDeviceFromPayload(payload);
   const room = await syncProvisioningState(payload);
   const roomState = payload.roomId
     ? await upsertRoomCurrentState(payload.roomId, {
@@ -158,6 +192,14 @@ async function handleStatusMessage({ payload, io }) {
     io.emit("device:status-changed", device);
   }
 
+  if (command && io) {
+    io.emit("command:updated", command);
+  }
+
+  if (detachedRoomState && io) {
+    io.emit("room:state-updated", detachedRoomState);
+  }
+
   if (room && io) {
     io.emit("room:state-updated", room);
   }
@@ -168,7 +210,7 @@ async function handleStatusMessage({ payload, io }) {
 }
 
 async function handleHeartbeatMessage({ payload, io }) {
-  const device = await upsertDeviceFromPayload(payload);
+  const { device, detachedRoomState } = await upsertDeviceFromPayload(payload);
   const roomState = payload.roomId
     ? await upsertRoomCurrentState(payload.roomId, {
         deviceId: payload.deviceId || "",
@@ -190,6 +232,10 @@ async function handleHeartbeatMessage({ payload, io }) {
     io.emit("device:seen", device);
   }
 
+  if (detachedRoomState && io) {
+    io.emit("room:state-updated", detachedRoomState);
+  }
+
   if (roomState && io) {
     io.emit("room:state-updated", roomState);
   }
@@ -201,7 +247,7 @@ async function handleTelemetryMessage({ payload, io }) {
     return;
   }
 
-  const device = await upsertDeviceFromPayload(payload);
+  const { device } = await upsertDeviceFromPayload(payload);
   const telemetry = await createTelemetryEntry({
     deviceId: payload.deviceId,
     roomId: payload.roomId,
@@ -265,7 +311,7 @@ async function handleAlarmMessage({ payload, io }) {
     return;
   }
 
-  const device = await upsertDeviceFromPayload(payload);
+  const { device } = await upsertDeviceFromPayload(payload);
   const alarm = await createAlarmEntry({
     deviceId: payload.deviceId,
     roomId: payload.roomId,
@@ -310,7 +356,8 @@ async function handleAlarmMessage({ payload, io }) {
 }
 
 async function handleEventMessage({ payload, io }) {
-  const device = await upsertDeviceFromPayload(payload);
+  const command = await acknowledgeCommandFromEvent(payload);
+  const { device, detachedRoomState } = await upsertDeviceFromPayload(payload);
   const room = await syncProvisioningState(payload);
   let event = null;
 
@@ -331,6 +378,14 @@ async function handleEventMessage({ payload, io }) {
 
   if (device && io) {
     io.emit("device:status-changed", device);
+  }
+
+  if (command && io) {
+    io.emit("command:updated", command);
+  }
+
+  if (detachedRoomState && io) {
+    io.emit("room:state-updated", detachedRoomState);
   }
 
   if (room && io) {

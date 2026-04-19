@@ -1,16 +1,9 @@
 const authService = require("./auth.service");
+const { validateAuthPayload } = require("../../utils/validation");
 
 async function login(req, res, next) {
   try {
-    const { email, password } = req.body;
-
-    if (!email || typeof email !== "string") {
-      return res.status(400).json({ message: "email is required" });
-    }
-
-    if (!password || typeof password !== "string") {
-      return res.status(400).json({ message: "password is required" });
-    }
+    const { email, password } = validateAuthPayload(req.body);
 
     const result = await authService.login({ email, password });
     res.json(result);

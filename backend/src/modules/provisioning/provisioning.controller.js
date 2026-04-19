@@ -1,12 +1,9 @@
 const provisioningService = require("./provisioning.service");
+const { validateProvisioningPayload } = require("../../utils/validation");
 
 async function provisionDevice(req, res, next) {
   try {
-    const roomId = req.body.roomId;
-
-    if (!roomId || typeof roomId !== "string") {
-      return res.status(400).json({ message: "roomId is required" });
-    }
+    const { roomId } = validateProvisioningPayload(req.body);
 
     const result = await provisioningService.provisionDevice({
       deviceId: req.params.deviceId,

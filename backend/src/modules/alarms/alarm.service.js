@@ -18,18 +18,54 @@ async function createAlarmEntry(input) {
   return alarm.toObject();
 }
 
-async function listAlarms({ roomId, activeOnly = false, limit = 100 } = {}) {
+async function listAlarms({
+  roomId,
+  deviceId,
+  reason,
+  activeOnly = false,
+  silenced,
+  search,
+  sortBy = "triggeredAt",
+  sortOrder = "desc",
+  limit = 100,
+} = {}) {
   const filter = {};
 
   if (roomId) {
     filter.roomId = roomId;
   }
 
+  if (deviceId) {
+    filter.deviceId = deviceId;
+  }
+
+  if (reason) {
+    filter.reason = reason;
+  }
+
   if (activeOnly) {
     filter.isActive = true;
   }
 
-  return Alarm.find(filter).sort({ triggeredAt: -1 }).limit(limit).lean();
+  if (typeof silenced === "boolean") {
+    filter.alarmSilenced = silenced;
+  }
+
+  if (search) {
+    const pattern = new RegExp(search, "i");
+    filter.$or = [
+      { roomId: pattern },
+      { deviceId: pattern },
+      { reason: pattern },
+    ];
+  }
+
+  const normalizedSortOrder = sortOrder === "asc" ? 1 : -1;
+
+  return Alarm.find(filter)
+    .sort({ [sortBy]: normalizedSortOrder, triggeredAt: -1 })
+    .limit(limit)
+    .lean();
 }
 
 async function clearActiveAlarmsForRoom(roomId, { clearedAt = new Date() } = {}) {

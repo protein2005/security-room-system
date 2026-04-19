@@ -1,19 +1,6 @@
 const roomService = require("./room.service");
 const { listCommands, sendRoomCommand } = require("../commands/command.service");
-
-function validateRoomPayload(body, { partial = false } = {}) {
-  const requiredFields = ["roomId", "roomName", "zoneType"];
-
-  if (!partial) {
-    for (const field of requiredFields) {
-      if (!body[field] || typeof body[field] !== "string") {
-        return `${field} is required`;
-      }
-    }
-  }
-
-  return null;
-}
+const { parseLimit, validateRoomPayload, validateThresholdPayload } = require("../../utils/validation");
 
 async function getRooms(_req, res, next) {
   try {
@@ -40,19 +27,15 @@ async function getRoomByRoomId(req, res, next) {
 
 async function createRoom(req, res, next) {
   try {
-    const validationError = validateRoomPayload(req.body);
+    const payload = validateRoomPayload(req.body);
 
-    if (validationError) {
-      return res.status(400).json({ message: validationError });
-    }
-
-    const existingRoom = await roomService.getRoomByRoomId(req.body.roomId);
+    const existingRoom = await roomService.getRoomByRoomId(payload.roomId);
 
     if (existingRoom) {
       return res.status(409).json({ message: "Room with this roomId already exists" });
     }
 
-    const room = await roomService.createRoom(req.body);
+    const room = await roomService.createRoom(payload);
     res.status(201).json(room);
   } catch (error) {
     next(error);
@@ -61,13 +44,9 @@ async function createRoom(req, res, next) {
 
 async function updateRoom(req, res, next) {
   try {
-    const validationError = validateRoomPayload(req.body, { partial: true });
+    const payload = validateRoomPayload(req.body, { partial: true });
 
-    if (validationError) {
-      return res.status(400).json({ message: validationError });
-    }
-
-    const room = await roomService.updateRoom(req.params.roomId, req.body);
+    const room = await roomService.updateRoom(req.params.roomId, payload);
 
     if (!room) {
       return res.status(404).json({ message: "Room not found" });
@@ -102,9 +81,9 @@ async function getRoomTelemetry(req, res, next) {
       return res.status(404).json({ message: "Room not found" });
     }
 
-    const limit = Number(req.query.limit || 100);
+    const limit = parseLimit(req.query.limit);
     const telemetry = await roomService.listTelemetryByRoomId(req.params.roomId, {
-      limit: Number.isFinite(limit) ? Math.min(Math.max(limit, 1), 500) : 100,
+      limit,
     });
 
     res.json(telemetry);
@@ -121,10 +100,10 @@ async function getRoomAlarms(req, res, next) {
       return res.status(404).json({ message: "Room not found" });
     }
 
-    const limit = Number(req.query.limit || 100);
+    const limit = parseLimit(req.query.limit);
     const alarms = await roomService.listRoomAlarms(req.params.roomId, {
       activeOnly: req.query.active === "true",
-      limit: Number.isFinite(limit) ? Math.min(Math.max(limit, 1), 500) : 100,
+      limit,
     });
 
     res.json(alarms);
@@ -141,9 +120,9 @@ async function getRoomEvents(req, res, next) {
       return res.status(404).json({ message: "Room not found" });
     }
 
-    const limit = Number(req.query.limit || 100);
+    const limit = parseLimit(req.query.limit);
     const events = await roomService.listRoomEvents(req.params.roomId, {
-      limit: Number.isFinite(limit) ? Math.min(Math.max(limit, 1), 500) : 100,
+      limit,
     });
 
     res.json(events);
@@ -160,10 +139,10 @@ async function getRoomCommands(req, res, next) {
       return res.status(404).json({ message: "Room not found" });
     }
 
-    const limit = Number(req.query.limit || 100);
+    const limit = parseLimit(req.query.limit);
     const commands = await listCommands({
       targetRoomId: req.params.roomId,
-      limit: Number.isFinite(limit) ? Math.min(Math.max(limit, 1), 500) : 100,
+      limit,
     });
 
     res.json(commands);
@@ -201,17 +180,7 @@ async function resetRoomAlarm(req, res, next) {
 
 async function updateRoomThresholds(req, res, next) {
   try {
-    const { tempMin, tempMax, humidityMin, humidityMax } = req.body;
-
-    if (
-      [tempMin, tempMax, humidityMin, humidityMax].some(
-        (value) => typeof value !== "number" || Number.isNaN(value)
-      )
-    ) {
-      return res.status(400).json({
-        message: "tempMin, tempMax, humidityMin and humidityMax must be numbers",
-      });
-    }
+    const { tempMin, tempMax, humidityMin, humidityMax } = validateThresholdPayload(req.body);
 
     const result = await sendRoomCommand(
       req.params.roomId,

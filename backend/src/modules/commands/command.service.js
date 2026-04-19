@@ -35,6 +35,16 @@ async function markCommandPublished(commandId) {
         status: "published",
         publishedAt: new Date(),
         errorMessage: "",
+        acknowledgedAt: null,
+        outcome: {
+          matchedBy: "",
+          resultStatus: "",
+          resultEventName: "",
+          source: "",
+          details: "",
+          correlationKey: "",
+          matchedAt: null,
+        },
       },
     },
     { new: true }
@@ -73,12 +83,35 @@ function buildCommandFilter(filters = {}) {
     query.status = filters.status;
   }
 
+  if (typeof filters.hasOutcome === "boolean") {
+    query["outcome.matchedAt"] = filters.hasOutcome ? { $ne: null } : null;
+  }
+
+  if (filters.search) {
+    const pattern = new RegExp(filters.search, "i");
+    query.$or = [
+      { targetDeviceId: pattern },
+      { targetRoomId: pattern },
+      { action: pattern },
+      { mqttTopic: pattern },
+      { "requestedBy.email": pattern },
+      { "requestedBy.name": pattern },
+      { "outcome.resultStatus": pattern },
+      { "outcome.resultEventName": pattern },
+      { "outcome.details": pattern },
+      { errorMessage: pattern },
+    ];
+  }
+
   return query;
 }
 
 async function listCommands(filters = {}) {
+  const sortField = filters.sortBy || "createdAt";
+  const sortOrder = filters.sortOrder === "asc" ? 1 : -1;
+
   return Command.find(buildCommandFilter(filters))
-    .sort({ createdAt: -1 })
+    .sort({ [sortField]: sortOrder, createdAt: -1 })
     .limit(filters.limit || 100)
     .lean();
 }

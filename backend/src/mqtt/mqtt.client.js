@@ -4,6 +4,7 @@ const { env } = require("../config/env");
 const { createTopicMap } = require("./mqtt.topics");
 const { routeMqttMessage } = require("./mqtt.router");
 const { logger } = require("../utils/logger");
+const { validateMqttPayload } = require("../utils/validation");
 
 let mqttClient;
 
@@ -41,16 +42,20 @@ async function connectMqtt({ io }) {
   });
 
   mqttClient.on("message", async (topic, message) => {
-    const payload = safeJsonParse(message);
+    let payload = safeJsonParse(message);
 
     if (!payload) {
       return;
     }
 
     try {
+      payload = validateMqttPayload({ topic, payload });
       await routeMqttMessage({ topic, payload, io, topics });
     } catch (error) {
-      logger.error(`Failed to process MQTT message from ${topic}`, error);
+      logger.error(`Failed to process MQTT message from ${topic}`, {
+        error: error.message,
+        details: error.details || [],
+      });
     }
   });
 

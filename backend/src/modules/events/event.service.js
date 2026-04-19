@@ -19,14 +19,51 @@ async function createEventEntry(input) {
   return event.toObject();
 }
 
-async function listEvents({ roomId, limit = 100 } = {}) {
+async function listEvents({
+  roomId,
+  deviceId,
+  source,
+  eventNames = [],
+  search,
+  sortBy = "createdAt",
+  sortOrder = "desc",
+  limit = 100,
+} = {}) {
   const filter = {};
 
   if (roomId) {
     filter.roomId = roomId;
   }
 
-  return Event.find(filter).sort({ createdAt: -1 }).limit(limit).lean();
+  if (deviceId) {
+    filter.deviceId = deviceId;
+  }
+
+  if (source) {
+    filter.source = source;
+  }
+
+  if (eventNames.length) {
+    filter.eventName = { $in: eventNames };
+  }
+
+  if (search) {
+    const pattern = new RegExp(search, "i");
+    filter.$or = [
+      { eventName: pattern },
+      { roomId: pattern },
+      { deviceId: pattern },
+      { source: pattern },
+      { details: pattern },
+    ];
+  }
+
+  const normalizedSortOrder = sortOrder === "asc" ? 1 : -1;
+
+  return Event.find(filter)
+    .sort({ [sortBy]: normalizedSortOrder, createdAt: -1 })
+    .limit(limit)
+    .lean();
 }
 
 module.exports = {
