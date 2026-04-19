@@ -1,5 +1,6 @@
 import {
   Bell,
+  Command,
   Cpu,
   DoorOpen,
   LayoutDashboard,
@@ -24,11 +25,12 @@ const navigation = [
   { to: "/provisioning", label: "Прив'язка", icon: SlidersHorizontal },
   { to: "/alarms", label: "Тривоги", icon: ShieldAlert },
   { to: "/events", label: "Події", icon: Bell },
+  { to: "/commands", label: "Команди", icon: Command },
 ];
 
 function SidebarContent({ onNavigate, user, onLogout }) {
   return (
-    <div className="flex h-full flex-col gap-8">
+    <div className="flex h-full flex-col gap-6">
       <div className="space-y-4">
         <div className="flex items-center gap-3">
           <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-panel">
@@ -102,13 +104,13 @@ export function AppShell() {
   }
 
   return (
-    <div className="min-h-screen">
-      <div className="mx-auto flex min-h-screen max-w-[1600px]">
-        <aside className="hidden w-[320px] shrink-0 border-r border-white/50 bg-white/40 p-6 backdrop-blur xl:block">
+    <div className="h-screen overflow-hidden">
+      <div className="mx-auto flex h-screen max-w-[1600px] overflow-hidden">
+        <aside className="hidden h-screen w-[320px] shrink-0 border-r border-white/50 bg-white/40 p-6 backdrop-blur xl:block">
           <SidebarContent user={user} onLogout={handleLogout} />
         </aside>
 
-        <div className="flex min-h-screen min-w-0 flex-1 flex-col">
+        <div className="flex h-screen min-w-0 flex-1 flex-col overflow-hidden">
           <header className="sticky top-0 z-30 border-b border-white/50 bg-white/65 backdrop-blur">
             <div className="page-shell py-3">
               <div className="flex items-center justify-between gap-4">
@@ -136,7 +138,7 @@ export function AppShell() {
             </div>
           </header>
 
-          <main className="flex-1">
+          <main className="flex-1 overflow-y-auto">
             <Outlet />
           </main>
         </div>

@@ -9,7 +9,7 @@ import { EmptyState } from "@/shared/components/empty-state";
 import { ErrorState } from "@/shared/components/error-state";
 import { LoadingSkeleton } from "@/shared/components/loading-skeleton";
 import { SectionHeading } from "@/shared/components/section-heading";
-import { formatDateTime } from "@/shared/lib/utils";
+import { formatAlarmReason, formatDateTime, formatZoneType } from "@/shared/lib/utils";
 
 function RoomsLoadingState() {
   return (
@@ -79,7 +79,7 @@ export function RoomsPage() {
                 <CardHeader>
                   <CardTitle>{room.roomName}</CardTitle>
                   <p className="text-sm text-muted-foreground">
-                    {room.roomId} • {room.zoneType}
+                    {room.roomId} • {formatZoneType(room.zoneType)}
                   </p>
                 </CardHeader>
                 <CardContent className="flex flex-1 flex-col gap-5">
@@ -94,7 +94,7 @@ export function RoomsPage() {
                     </div>
                     <div>
                       <p className="text-muted-foreground">Тривога</p>
-                      <p className="font-medium">{room.alarmActive ? room.alarmReason || "Активна" : "Немає"}</p>
+                      <p className="font-medium">{room.alarmActive ? formatAlarmReason(room.alarmReason) : "Немає"}</p>
                     </div>
                     <div>
                       <p className="text-muted-foreground">Режим охорони</p>

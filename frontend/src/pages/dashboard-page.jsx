@@ -11,7 +11,7 @@ import { LoadingCardGrid, LoadingSkeleton } from "@/shared/components/loading-sk
 import { MetricCard } from "@/shared/components/metric-card";
 import { SectionHeading } from "@/shared/components/section-heading";
 import { StatusBadge } from "@/shared/components/status-badge";
-import { formatDateTime } from "@/shared/lib/utils";
+import { formatDateTime, formatEventName } from "@/shared/lib/utils";
 
 function DashboardLoadingState() {
   return (
@@ -168,12 +168,12 @@ export function DashboardPage() {
                   {events.length === 0 ? (
                     <EmptyState
                       title="Подій поки немає"
-                      description="Після provisioning та перших системних дій журнал почне наповнюватися автоматично."
+                      description="Після прив'язки пристрою та перших системних дій журнал почне наповнюватися автоматично."
                     />
                   ) : (
                     events.slice(0, 5).map((event) => (
                       <div key={event._id} className="rounded-2xl bg-white/80 p-3">
-                        <p className="text-sm font-semibold">{event.eventName}</p>
+                        <p className="text-sm font-semibold">{formatEventName(event.eventName)}</p>
                         <p className="text-xs text-muted-foreground">
                           {event.roomId || "система"} • {formatDateTime(event.createdAt)}
                         </p>

@@ -71,11 +71,11 @@ export function DevicesPage() {
       setPendingFactoryReset(null);
       queryClient.invalidateQueries({ queryKey: ["devices"] });
       queryClient.invalidateQueries({ queryKey: ["commands"] });
-      toast.success("Команду factory reset відправлено", `Пристрій ${deviceId} отримав команду скидання.`);
+      toast.success("Команду заводського скидання відправлено", `Пристрій ${deviceId} отримав команду скидання.`);
     },
     onError: (error) => {
       toast.error(
-        "Не вдалося виконати factory reset",
+        "Не вдалося виконати заводське скидання",
         error?.response?.data?.message || "Спробуй ще раз або перевір права доступу."
       );
     },
@@ -152,7 +152,7 @@ export function DevicesPage() {
                   description="Після першого heartbeat новий ESP32 автоматично з'явиться в реєстрі."
                   actions={
                     <Button asChild>
-                      <Link to="/provisioning">Відкрити provisioning</Link>
+                      <Link to="/provisioning">Відкрити прив'язку</Link>
                     </Button>
                   }
                 />
@@ -189,7 +189,7 @@ export function DevicesPage() {
                           >
                             {factoryResetMutation.isPending && pendingFactoryReset?.deviceId === device.deviceId
                               ? "Відправка..."
-                              : "Factory reset"}
+                              : "Заводське скидання"}
                           </Button>
                         ) : null}
                       </div>
@@ -204,11 +204,11 @@ export function DevicesPage() {
 
       <ConfirmDialog
         open={Boolean(pendingFactoryReset)}
-        title="Підтвердити factory reset"
+        title="Підтвердити заводське скидання"
         description={
           pendingFactoryReset
             ? `Скинути пристрій ${pendingFactoryReset.deviceId} до заводських налаштувань? Після перезапуску його доведеться прив'язати заново.`
-            : "Підтвердити factory reset?"
+            : "Підтвердити заводське скидання?"
         }
         confirmLabel="Так, скинути"
         loading={factoryResetMutation.isPending}

@@ -37,6 +37,10 @@ export function RealtimeProvider({ children, queryClient }) {
       queryClient.invalidateQueries({ queryKey: ["room-events"] });
       invalidateDashboard();
     };
+    const invalidateCommands = () => {
+      queryClient.invalidateQueries({ queryKey: ["commands"] });
+      queryClient.invalidateQueries({ queryKey: ["room-commands"] });
+    };
 
     socket.on("device:seen", invalidateDevices);
     socket.on("device:status-changed", invalidateDevices);
@@ -44,6 +48,7 @@ export function RealtimeProvider({ children, queryClient }) {
     socket.on("room:telemetry", invalidateTelemetry);
     socket.on("alarm:triggered", invalidateAlarms);
     socket.on("event:created", invalidateEvents);
+    socket.on("command:updated", invalidateCommands);
 
     return () => {
       socket.off("device:seen", invalidateDevices);
@@ -52,6 +57,7 @@ export function RealtimeProvider({ children, queryClient }) {
       socket.off("room:telemetry", invalidateTelemetry);
       socket.off("alarm:triggered", invalidateAlarms);
       socket.off("event:created", invalidateEvents);
+      socket.off("command:updated", invalidateCommands);
       socket.disconnect();
     };
   }, [isAuthenticated, queryClient]);

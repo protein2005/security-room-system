@@ -10,6 +10,7 @@ import { ProvisioningPage } from "@/pages/provisioning-page";
 import { AlarmsPage } from "@/pages/alarms-page";
 import { EventsPage } from "@/pages/events-page";
 import { LoginPage } from "@/pages/login-page";
+import { CommandsPage } from "@/pages/commands-page";
 
 export const router = createBrowserRouter([
   {
@@ -32,6 +33,7 @@ export const router = createBrowserRouter([
           { path: "rooms/:roomId", element: <RoomDetailsPage /> },
           { path: "alarms", element: <AlarmsPage /> },
           { path: "events", element: <EventsPage /> },
+          { path: "commands", element: <CommandsPage /> },
         ],
       },
     ],

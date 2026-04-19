@@ -12,7 +12,7 @@ import { ErrorState } from "@/shared/components/error-state";
 import { LoadingSkeleton } from "@/shared/components/loading-skeleton";
 import { SectionHeading } from "@/shared/components/section-heading";
 import { useToast } from "@/shared/feedback/toast-provider";
-import { formatDateTime } from "@/shared/lib/utils";
+import { formatCommandAction, formatDateTime } from "@/shared/lib/utils";
 
 const initialRoomForm = {
   roomId: "",
@@ -94,7 +94,7 @@ export function ProvisioningPage() {
       queryClient.invalidateQueries({ queryKey: ["devices"] });
       queryClient.invalidateQueries({ queryKey: ["devices", "unprovisioned"] });
       setPendingProvision(null);
-      toast.success("Команду прив'язки відправлено", `${variables.deviceId} -> ${variables.roomId}`);
+      toast.success(`${formatCommandAction("PROVISION")} відправлено`, `${variables.deviceId} -> ${variables.roomId}`);
     },
     onError: (error) => {
       toast.error(
@@ -112,7 +112,7 @@ export function ProvisioningPage() {
       <SectionHeading
         eyebrow="Прив'язка"
         title="Створення кімнат і підключення нових ESP32"
-        description="Тут можна створити нову кімнату прямо з фронтенду, а потім відправити команду provisioning для будь-якого нового пристрою."
+        description="Тут можна створити нову кімнату прямо з фронтенду, а потім відправити команду прив'язки для будь-якого нового пристрою."
       />
 
       {isLoading ? <ProvisioningLoadingState /> : null}

@@ -26,7 +26,7 @@ import { SectionHeading } from "@/shared/components/section-heading";
 import { SparklineChart } from "@/shared/components/sparkline-chart";
 import { StatusBadge } from "@/shared/components/status-badge";
 import { useToast } from "@/shared/feedback/toast-provider";
-import { formatDateTime, formatNumber } from "@/shared/lib/utils";
+import { formatAlarmReason, formatCommandAction, formatDateTime, formatEventName, formatNumber, formatStatusCode } from "@/shared/lib/utils";
 
 function RoomDetailsLoadingState() {
   return (
@@ -142,7 +142,7 @@ export function RoomDetailsPage() {
     onSuccess: (_data, variables) => {
       setPendingAction(null);
       refreshRoom();
-      toast.success("Команду відправлено", `${getActionCodeLabel(variables.action)} для кімнати ${roomId}`);
+      toast.success("Команду відправлено", `${formatCommandAction(variables.action)} для кімнати ${roomId}`);
     },
     onError: (error) => {
       toast.error("Не вдалося виконати команду", error?.response?.data?.message || "Спробуй ще раз.");
@@ -216,6 +216,15 @@ export function RoomDetailsPage() {
     .map((item) => item.humidity)
     .filter((value) => value !== null && value !== undefined);
 
+  const assignedDeviceId = state?.deviceId || room.deviceId || "";
+  const hasAssignedDevice = Boolean(assignedDeviceId);
+  const connectivityValue = !hasAssignedDevice ? "Не прив'язано" : state?.offline ? "Офлайн" : "Онлайн";
+  const connectivityHint = hasAssignedDevice
+    ? assignedDeviceId
+    : "Пристрій для цієї кімнати ще не прив'язано";
+  const stateBadgeOnline = hasAssignedDevice && !state?.offline;
+  const stateBadgeText = !hasAssignedDevice ? "Не прив'язано" : state?.offline ? "Офлайн" : "Онлайн";
+
   return (
     <div className="page-shell">
       <SectionHeading
@@ -251,12 +260,7 @@ export function RoomDetailsPage() {
           value={state?.armed ? "Увімкнена" : "Вимкнена"}
           hint={state?.alarmActive ? "Є активна тривога" : "Нормальний стан"}
         />
-        <MetricCard
-          icon={Wifi}
-          label="Зв'язок"
-          value={state?.offline ? "Офлайн" : "Онлайн"}
-          hint={state?.deviceId || "Пристрій не прив'язано"}
-        />
+        <MetricCard icon={Wifi} label="Зв'язок" value={connectivityValue} hint={connectivityHint} />
       </div>
 
       <div className="grid gap-4 xl:grid-cols-[1.15fr,0.85fr]">
@@ -265,8 +269,8 @@ export function RoomDetailsPage() {
             <CardTitle>Поточний стан</CardTitle>
           </CardHeader>
           <CardContent className="grid gap-3 sm:grid-cols-2">
-            <StateRow label="Пристрій" value={state?.deviceId || room.deviceId || "—"} />
-            <StateRow label="Статус" value={<StatusBadge online={!state?.offline} />} />
+            <StateRow label="Пристрій" value={assignedDeviceId || "—"} />
+            <StateRow label="Статус" value={<StatusBadge online={stateBadgeOnline} text={stateBadgeText} />} />
             <StateRow label="Рух" value={state?.motion ? "Виявлено" : "Немає"} />
             <StateRow label="Двері" value={state?.door ? "Відчинено" : "Зачинено"} />
             <StateRow label="Помилка сенсора" value={state?.sensorFailure ? "Так" : "Ні"} />
@@ -383,7 +387,7 @@ export function RoomDetailsPage() {
                 <div key={alarm._id} className="rounded-2xl border border-rose-200 bg-rose-50 p-3">
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <p className="font-semibold text-rose-900">{alarm.reason}</p>
+                      <p className="font-semibold text-rose-900">{formatAlarmReason(alarm.reason)}</p>
                       <p className="text-xs text-rose-700">{formatDateTime(alarm.triggeredAt)}</p>
                     </div>
                     <StatusBadge online={alarm.isActive} text={alarm.isActive ? "Активна" : "Закрита"} />
@@ -409,7 +413,7 @@ export function RoomDetailsPage() {
                 <div key={event._id} className="rounded-2xl bg-white/80 p-3">
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <p className="font-semibold">{event.eventName}</p>
+                      <p className="font-semibold">{formatEventName(event.eventName)}</p>
                       <p className="text-xs text-muted-foreground">
                         {event.source || "система"} • {formatDateTime(event.createdAt)}
                       </p>
@@ -434,7 +438,7 @@ export function RoomDetailsPage() {
           {commands.length === 0 ? (
             <EmptyState
               title="Команд для цієї кімнати ще немає"
-              description="Після ARM, DISARM, RESET_ALARM або зміни порогів команди з'являться тут."
+              description="Після увімкнення охорони, вимкнення охорони, скидання тривоги або зміни порогів команди з'являться тут."
             />
           ) : (
             commands.map((command) => (
@@ -443,18 +447,20 @@ export function RoomDetailsPage() {
                 className="grid gap-3 rounded-2xl border border-white/70 bg-white/80 p-4 md:grid-cols-[1fr,1fr,auto] md:items-center"
               >
                 <div>
-                  <p className="font-semibold">{getActionCodeLabel(command.action)}</p>
+                  <p className="font-semibold">{getCommandActionTitle(command.action)}</p>
                   <p className="text-sm text-muted-foreground">
                     {command.requestedBy?.name || command.requestedBy?.email || "Невідомий користувач"}
                   </p>
+                  <p className="text-xs text-muted-foreground">{getCommandActionDescription(command.action)}</p>
                 </div>
                 <div className="text-sm text-muted-foreground">
                   <p>Статус: {getCommandStatusLabel(command.status)}</p>
                   <p>Час: {formatDateTime(command.publishedAt || command.createdAt)}</p>
+                  <p>Результат: {getCommandOutcomeLabel(command)}</p>
                 </div>
                 <div className="flex justify-end">
                   <StatusBadge
-                    online={command.status === "published"}
+                    online={command.status === "published" || command.status === "acknowledged"}
                     text={getCommandStatusLabel(command.status)}
                   />
                 </div>
@@ -526,7 +532,48 @@ function getActionCodeLabel(action) {
 }
 
 function getCommandStatusLabel(status) {
+  if (status === "acknowledged") return "Підтверджено";
   if (status === "published") return "Відправлено";
   if (status === "failed") return "Помилка";
   return "Очікує";
+}
+
+function getCommandActionTitle(action) {
+  if (action === "PROVISION") return "Прив'язка пристрою";
+  if (action === "ARM") return "Увімкнення охорони";
+  if (action === "DISARM") return "Вимкнення охорони";
+  if (action === "RESET_ALARM") return "Скидання тривоги";
+  if (action === "SET_THRESHOLDS") return "Оновлення порогів";
+  if (action === "FACTORY_RESET") return "Заводське скидання";
+  return action;
+}
+
+function getCommandActionDescription(action) {
+  if (action === "PROVISION") return "Пристрій отримує прив'язку до кімнати і переходить у робочий режим.";
+  if (action === "ARM") return "Система переходить у режим охорони.";
+  if (action === "DISARM") return "Система виходить з режиму охорони.";
+  if (action === "RESET_ALARM") return "Активна тривога скидається або приглушується.";
+  if (action === "SET_THRESHOLDS") return "На пристрій передаються нові пороги температури та вологості.";
+  if (action === "FACTORY_RESET") return "Пристрій повертається до заводського стану і втрачає прив'язку.";
+  return "Системна команда.";
+}
+
+function getCommandOutcomeLabel(command) {
+  if (command.outcome?.resultEventName) {
+    return formatEventName(command.outcome.resultEventName);
+  }
+
+  if (command.outcome?.resultStatus) {
+    return formatStatusCode(command.outcome.resultStatus);
+  }
+
+  if (command.status === "failed") {
+    return "Не виконано";
+  }
+
+  if (command.status === "published") {
+    return "Очікує підтвердження";
+  }
+
+  return "Ще немає";
 }
