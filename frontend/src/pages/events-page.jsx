@@ -1,5 +1,5 @@
 import { useDeferredValue, useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { fetchEvents } from "@/shared/api/events";
@@ -61,6 +61,7 @@ export function EventsPage() {
   const eventsQuery = useQuery({
     queryKey: ["events", queryParams],
     queryFn: () => fetchEvents(queryParams),
+    placeholderData: keepPreviousData,
   });
 
   const events = eventsQuery.data || [];

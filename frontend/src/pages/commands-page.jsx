@@ -1,5 +1,5 @@
 import { useDeferredValue, useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { fetchCommands } from "@/shared/api/commands";
@@ -65,6 +65,7 @@ export function CommandsPage() {
   const commandsQuery = useQuery({
     queryKey: ["commands", queryParams],
     queryFn: () => fetchCommands(queryParams),
+    placeholderData: keepPreviousData,
   });
 
   const commands = commandsQuery.data || [];

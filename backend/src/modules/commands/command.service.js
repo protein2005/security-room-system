@@ -109,9 +109,14 @@ function buildCommandFilter(filters = {}) {
 async function listCommands(filters = {}) {
   const sortField = filters.sortBy || "createdAt";
   const sortOrder = filters.sortOrder === "asc" ? 1 : -1;
+  const sort = { [sortField]: sortOrder };
+
+  if (sortField !== "createdAt") {
+    sort.createdAt = -1;
+  }
 
   return Command.find(buildCommandFilter(filters))
-    .sort({ [sortField]: sortOrder, createdAt: -1 })
+    .sort(sort)
     .limit(filters.limit || 100)
     .lean();
 }

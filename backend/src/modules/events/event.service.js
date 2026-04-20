@@ -59,9 +59,14 @@ async function listEvents({
   }
 
   const normalizedSortOrder = sortOrder === "asc" ? 1 : -1;
+  const sort = { [sortBy]: normalizedSortOrder };
+
+  if (sortBy !== "createdAt") {
+    sort.createdAt = -1;
+  }
 
   return Event.find(filter)
-    .sort({ [sortBy]: normalizedSortOrder, createdAt: -1 })
+    .sort(sort)
     .limit(limit)
     .lean();
 }

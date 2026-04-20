@@ -61,9 +61,14 @@ async function listAlarms({
   }
 
   const normalizedSortOrder = sortOrder === "asc" ? 1 : -1;
+  const sort = { [sortBy]: normalizedSortOrder };
+
+  if (sortBy !== "triggeredAt") {
+    sort.triggeredAt = -1;
+  }
 
   return Alarm.find(filter)
-    .sort({ [sortBy]: normalizedSortOrder, triggeredAt: -1 })
+    .sort(sort)
     .limit(limit)
     .lean();
 }

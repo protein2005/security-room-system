@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Droplets, Shield, Thermometer, Wifi } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
 import { Button } from "@/components/ui/button";
@@ -58,11 +58,12 @@ export function RoomDetailsPage() {
   const toast = useToast();
   const [pendingAction, setPendingAction] = useState(null);
   const [thresholds, setThresholds] = useState({
-    tempMin: 18,
-    tempMax: 32,
-    humidityMin: 30,
-    humidityMax: 70,
+    tempMin: "18",
+    tempMax: "32",
+    humidityMin: "30",
+    humidityMax: "70",
   });
+  const [isThresholdFormDirty, setIsThresholdFormDirty] = useState(false);
 
   const roomQuery = useQuery({
     queryKey: ["room", roomId],
@@ -106,17 +107,22 @@ export function RoomDetailsPage() {
   const alarms = alarmsQuery.data || [];
   const events = eventsQuery.data || [];
   const commands = commandsQuery.data || [];
+  const syncedThresholds = useMemo(() => getThresholdFormValues(state), [state]);
+
+  useEffect(() => {
+    if (!state) return;
+    if (isThresholdFormDirty) return;
+
+    setThresholds(syncedThresholds);
+  }, [isThresholdFormDirty, state, syncedThresholds]);
 
   useEffect(() => {
     if (!state) return;
 
-    setThresholds({
-      tempMin: state.tempMinThreshold ?? 18,
-      tempMax: state.tempMaxThreshold ?? 32,
-      humidityMin: state.humidityMinThreshold ?? 30,
-      humidityMax: state.humidityMaxThreshold ?? 70,
-    });
-  }, [state]);
+    if (areThresholdFormsEqual(thresholds, syncedThresholds)) {
+      setIsThresholdFormDirty(false);
+    }
+  }, [state, syncedThresholds, thresholds]);
 
   const refreshRoom = () => {
     queryClient.invalidateQueries({ queryKey: ["room", roomId] });
@@ -319,28 +325,39 @@ export function RoomDetailsPage() {
                 <ThresholdInput
                   label="Мін. температура"
                   value={thresholds.tempMin}
-                  onChange={(value) => setThresholds((current) => ({ ...current, tempMin: value }))}
+                  onChange={(value) => updateThresholdField("tempMin", value, setThresholds, setIsThresholdFormDirty)}
                 />
                 <ThresholdInput
                   label="Макс. температура"
                   value={thresholds.tempMax}
-                  onChange={(value) => setThresholds((current) => ({ ...current, tempMax: value }))}
+                  onChange={(value) => updateThresholdField("tempMax", value, setThresholds, setIsThresholdFormDirty)}
                 />
                 <ThresholdInput
                   label="Мін. вологість"
                   value={thresholds.humidityMin}
-                  onChange={(value) => setThresholds((current) => ({ ...current, humidityMin: value }))}
+                  onChange={(value) => updateThresholdField("humidityMin", value, setThresholds, setIsThresholdFormDirty)}
                 />
                 <ThresholdInput
                   label="Макс. вологість"
                   value={thresholds.humidityMax}
-                  onChange={(value) => setThresholds((current) => ({ ...current, humidityMax: value }))}
+                  onChange={(value) => updateThresholdField("humidityMax", value, setThresholds, setIsThresholdFormDirty)}
                 />
               </div>
               <Button
                 className="mt-4 w-full"
                 disabled={actionMutation.isPending}
-                onClick={() => setPendingAction({ action: "SET_THRESHOLDS", payload: thresholds })}
+                onClick={() => {
+                  const parsedThresholds = parseThresholdForm(thresholds);
+                  if (!parsedThresholds) {
+                    toast.error(
+                      "Не вдалося зберегти пороги",
+                      "Перевір, що всі значення заповнені числами і мінімальні пороги менші за максимальні."
+                    );
+                    return;
+                  }
+
+                  setPendingAction({ action: "SET_THRESHOLDS", payload: parsedThresholds });
+                }}
               >
                 {actionMutation.isPending && pendingAction?.action === "SET_THRESHOLDS"
                   ? "Відправка..."
@@ -505,12 +522,61 @@ function ThresholdInput({ label, value, onChange }) {
       <span className="mb-2 block text-sm font-medium">{label}</span>
       <input
         type="number"
+        step="any"
         value={value}
-        onChange={(event) => onChange(Number(event.target.value))}
+        onChange={(event) => onChange(event.target.value)}
         className="w-full rounded-2xl border border-border bg-white px-4 py-3 outline-none ring-0 focus:border-primary"
       />
     </label>
   );
+}
+
+function getThresholdFormValues(state) {
+  return {
+    tempMin: String(state?.tempMinThreshold ?? 18),
+    tempMax: String(state?.tempMaxThreshold ?? 32),
+    humidityMin: String(state?.humidityMinThreshold ?? 30),
+    humidityMax: String(state?.humidityMaxThreshold ?? 70),
+  };
+}
+
+function updateThresholdField(field, value, setThresholds, setIsThresholdFormDirty) {
+  setIsThresholdFormDirty(true);
+  setThresholds((current) => ({ ...current, [field]: value }));
+}
+
+function areThresholdFormsEqual(left, right) {
+  return (
+    left.tempMin === right.tempMin &&
+    left.tempMax === right.tempMax &&
+    left.humidityMin === right.humidityMin &&
+    left.humidityMax === right.humidityMax
+  );
+}
+
+function parseThresholdForm(thresholds) {
+  const rawValues = Object.values(thresholds);
+  if (rawValues.some((value) => String(value).trim() === "")) {
+    return null;
+  }
+
+  const values = {
+    tempMin: Number(thresholds.tempMin),
+    tempMax: Number(thresholds.tempMax),
+    humidityMin: Number(thresholds.humidityMin),
+    humidityMax: Number(thresholds.humidityMax),
+  };
+
+  const hasInvalidValue = Object.values(values).some((value) => Number.isNaN(value));
+  if (hasInvalidValue) {
+    return null;
+  }
+
+  if (values.tempMin >= values.tempMax || values.humidityMin >= values.humidityMax) {
+    return null;
+  }
+
+  return values;
 }
 
 function getActionLabel(action) {

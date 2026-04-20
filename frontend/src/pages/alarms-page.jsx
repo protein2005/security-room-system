@@ -1,5 +1,5 @@
 import { useDeferredValue, useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { fetchAlarms } from "@/shared/api/alarms";
@@ -77,6 +77,7 @@ export function AlarmsPage() {
   const alarmsQuery = useQuery({
     queryKey: ["alarms", queryParams],
     queryFn: () => fetchAlarms(queryParams),
+    placeholderData: keepPreviousData,
   });
 
   const alarms = alarmsQuery.data || [];
