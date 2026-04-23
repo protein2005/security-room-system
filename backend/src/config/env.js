@@ -23,14 +23,8 @@ const env = {
   adminPassword: requireEnv("ADMIN_PASSWORD", "admin"),
   adminName: process.env.ADMIN_NAME || "System Administrator",
   webPushSubject: process.env.WEB_PUSH_SUBJECT || "mailto:admin@security-room.local",
-  webPushPublicKey: requireEnv(
-    "WEB_PUSH_PUBLIC_KEY",
-    "BJGzTqXPvXL-e7dmdAfS_T6cbMymmZKYEtq80HEB_OTWSiYY-B2-wdP4wFAE7PJoIX9ygcsL6aVb3hl5o3-MMZg"
-  ),
-  webPushPrivateKey: requireEnv(
-    "WEB_PUSH_PRIVATE_KEY",
-    "iLJ2p6mGDLwK1aQvEaUChJ2K-l0KY-4XH5fqAV7mJYE"
-  ),
+  webPushPublicKey: requireEnv("WEB_PUSH_PUBLIC_KEY"),
+  webPushPrivateKey: requireEnv("WEB_PUSH_PRIVATE_KEY"),
   mqttUrl: requireEnv("MQTT_URL", "mqtt://localhost:1883"),
   mqttUsername: process.env.MQTT_USERNAME || "",
   mqttPassword: process.env.MQTT_PASSWORD || "",
