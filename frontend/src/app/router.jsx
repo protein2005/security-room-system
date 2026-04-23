@@ -11,6 +11,7 @@ import { AlarmsPage } from "@/pages/alarms-page";
 import { EventsPage } from "@/pages/events-page";
 import { LoginPage } from "@/pages/login-page";
 import { CommandsPage } from "@/pages/commands-page";
+import { SettingsPage } from "@/pages/settings-page";
 
 export const router = createBrowserRouter([
   {
@@ -27,13 +28,19 @@ export const router = createBrowserRouter([
         children: [
           { index: true, element: <Navigate to="/dashboard" replace /> },
           { path: "dashboard", element: <DashboardPage /> },
-          { path: "devices", element: <DevicesPage /> },
-          { path: "provisioning", element: <ProvisioningPage /> },
           { path: "rooms", element: <RoomsPage /> },
           { path: "rooms/:roomId", element: <RoomDetailsPage /> },
           { path: "alarms", element: <AlarmsPage /> },
           { path: "events", element: <EventsPage /> },
           { path: "commands", element: <CommandsPage /> },
+          { path: "settings", element: <SettingsPage /> },
+          {
+            element: <ProtectedRoute allowedRoles={["admin", "operator"]} />,
+            children: [
+              { path: "devices", element: <DevicesPage /> },
+              { path: "provisioning", element: <ProvisioningPage /> },
+            ],
+          },
         ],
       },
     ],

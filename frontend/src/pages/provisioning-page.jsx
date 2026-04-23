@@ -1,6 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 
+import { useAuth } from "@/features/auth/auth-provider";
+import { canPerformAction } from "@/features/auth/permissions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { fetchUnprovisionedDevices } from "@/shared/api/devices";
@@ -51,6 +53,7 @@ function ProvisioningLoadingState() {
 }
 
 export function ProvisioningPage() {
+  const { user } = useAuth();
   const queryClient = useQueryClient();
   const toast = useToast();
   const [selectedRoomId, setSelectedRoomId] = useState("");
@@ -71,6 +74,7 @@ export function ProvisioningPage() {
   const rooms = roomsQuery.data || [];
   const availableRooms = useMemo(() => rooms.filter((room) => !room.deviceId), [rooms]);
   const selectedRoom = availableRooms.find((room) => room.roomId === selectedRoomId);
+  const canManageProvisioning = canPerformAction(user?.role, "provisioning");
 
   const createRoomMutation = useMutation({
     mutationFn: createRoom,
@@ -184,6 +188,7 @@ export function ProvisioningPage() {
                 <select
                   value={selectedRoomId}
                   onChange={(event) => setSelectedRoomId(event.target.value)}
+                  disabled={!canManageProvisioning}
                   className="w-full rounded-2xl border border-border bg-white px-4 py-3 outline-none ring-0 focus:border-primary"
                 >
                   <option value="">Оберіть кімнату</option>
@@ -215,7 +220,7 @@ export function ProvisioningPage() {
                           </p>
                         </div>
                         <Button
-                          disabled={!selectedRoomId || provisionMutation.isPending}
+                          disabled={!canManageProvisioning || !selectedRoomId || provisionMutation.isPending}
                           onClick={() =>
                             setPendingProvision({
                               deviceId: device.deviceId,
@@ -236,7 +241,7 @@ export function ProvisioningPage() {
       ) : null}
 
       <ConfirmDialog
-        open={Boolean(pendingProvision)}
+        open={canManageProvisioning && Boolean(pendingProvision)}
         title="Підтвердити прив'язку"
         description={
           pendingProvision && selectedRoom

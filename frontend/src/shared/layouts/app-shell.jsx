@@ -6,7 +6,9 @@ import {
   LayoutDashboard,
   LogOut,
   Menu,
+  Info,
   RadioTower,
+  Settings,
   ShieldAlert,
   SlidersHorizontal,
   X,
@@ -15,6 +17,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
 
 import { useAuth } from "@/features/auth/auth-provider";
+import { canAccessPage } from "@/features/auth/permissions";
 import { Button } from "@/components/ui/button";
 import { fetchRooms } from "@/shared/api/rooms";
 import { cn, formatAlarmReason } from "@/shared/lib/utils";
@@ -23,14 +26,20 @@ import { useQuery } from "@tanstack/react-query";
 const navigation = [
   { to: "/dashboard", label: "Панель", icon: LayoutDashboard },
   { to: "/rooms", label: "Кімнати", icon: DoorOpen },
-  { to: "/devices", label: "Пристрої", icon: Cpu },
-  { to: "/provisioning", label: "Прив'язка", icon: SlidersHorizontal },
-  { to: "/alarms", label: "Тривоги", icon: ShieldAlert },
-  { to: "/events", label: "Події", icon: Bell },
-  { to: "/commands", label: "Команди", icon: Command },
-];
+  { to: "/devices", label: "Пристрої", icon: Cpu, pageKey: "devices" },
+  { to: "/provisioning", label: "Прив'язка", icon: SlidersHorizontal, pageKey: "provisioning" },
+  { to: "/alarms", label: "Тривоги", icon: ShieldAlert, pageKey: "alarms" },
+  { to: "/events", label: "Події", icon: Bell, pageKey: "events" },
+  { to: "/commands", label: "Команди", icon: Command, pageKey: "commands" },
+  { to: "/settings", label: "Налаштування", icon: Settings, pageKey: "settings" },
+].map((item) => ({
+  ...item,
+  pageKey: item.pageKey || item.to.replace("/", "") || "dashboard",
+}));
 
 function SidebarContent({ onNavigate, user, onLogout }) {
+  const visibleNavigation = navigation.filter((item) => canAccessPage(user?.role, item.pageKey));
+
   return (
     <div className="flex h-full flex-col gap-6">
       <div className="space-y-4">
@@ -39,17 +48,29 @@ function SidebarContent({ onNavigate, user, onLogout }) {
             <RadioTower className="h-6 w-6" />
           </div>
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-primary">Security Room</p>
+            <div className="flex items-center gap-2">
+              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-primary">Security Room</p>
+              <div className="group relative">
+                <button
+                  type="button"
+                  className="inline-flex h-5 w-5 items-center justify-center rounded-full text-muted-foreground transition hover:bg-white/80 hover:text-foreground"
+                  aria-label="Інформація про систему"
+                >
+                  <Info className="h-3.5 w-3.5" />
+                </button>
+                <div className="pointer-events-none absolute left-1/2 top-[calc(100%+10px)] z-20 w-64 -translate-x-1/2 rounded-2xl border border-white/70 bg-white/95 px-4 py-3 text-sm text-foreground opacity-0 shadow-2xl backdrop-blur transition duration-200 group-hover:opacity-100 group-focus-within:opacity-100">
+                  <div className="absolute left-1/2 top-0 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rotate-45 border-l border-t border-white/70 bg-white/95" />
+                  Адаптивна панель керування приміщеннями, пристроями, тривогами та live-станом системи.
+                </div>
+              </div>
+            </div>
             <h2 className="text-xl font-semibold">Пульт керування</h2>
           </div>
         </div>
-        <p className="text-sm text-muted-foreground">
-          Адаптивна панель керування приміщеннями, пристроями, тривогами та live-станом системи.
-        </p>
       </div>
 
       <nav className="flex flex-col gap-2">
-        {navigation.map((item) => {
+        {visibleNavigation.map((item) => {
           const Icon = item.icon;
 
           return (
@@ -74,7 +95,7 @@ function SidebarContent({ onNavigate, user, onLogout }) {
       <div className="mt-auto rounded-3xl border border-white/70 bg-white/80 p-4">
         <p className="text-sm font-semibold">{user?.name || "Користувач"}</p>
         <p className="mt-1 text-sm text-muted-foreground">
-          {user?.email} • {user?.role || "viewer"}
+          {user?.login || "user"} • {user?.role || "viewer"}
         </p>
         <Button variant="outline" className="mt-4 w-full" onClick={onLogout}>
           <LogOut className="h-4 w-4" />

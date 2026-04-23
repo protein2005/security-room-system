@@ -13,7 +13,7 @@ export function LoginPage() {
   const toast = useToast();
   const { login, isAuthenticating } = useAuth();
   const [form, setForm] = useState({
-    email: "",
+    login: "",
     password: "",
   });
 
@@ -29,7 +29,7 @@ export function LoginPage() {
     } catch (error) {
       toast.error(
         "Не вдалося увійти",
-        error?.response?.data?.message || "Перевір email і пароль та спробуй ще раз."
+        error?.response?.data?.message || "Перевір логін і пароль та спробуй ще раз."
       );
     }
   }
@@ -67,12 +67,12 @@ export function LoginPage() {
             <CardContent>
               <form className="space-y-4" onSubmit={handleSubmit}>
                 <label className="block">
-                  <span className="mb-2 block text-sm font-medium">Email</span>
+                  <span className="mb-2 block text-sm font-medium">Логін</span>
                   <input
-                    type="email"
-                    value={form.email}
-                    onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))}
-                    placeholder="admin@security-room.local"
+                    type="text"
+                    value={form.login}
+                    onChange={(event) => setForm((current) => ({ ...current, login: event.target.value }))}
+                    placeholder="admin"
                     className="w-full rounded-2xl border border-border bg-white px-4 py-3 outline-none ring-0 focus:border-primary"
                     autoComplete="username"
                     required
@@ -95,6 +95,9 @@ export function LoginPage() {
                 <Button type="submit" className="w-full" disabled={isAuthenticating}>
                   {isAuthenticating ? "Вхід..." : "Увійти"}
                 </Button>
+                <p className="text-center text-sm text-muted-foreground">
+                  Стандартний доступ після першого запуску: <span className="font-medium text-foreground">admin / admin</span>
+                </p>
               </form>
             </CardContent>
           </Card>

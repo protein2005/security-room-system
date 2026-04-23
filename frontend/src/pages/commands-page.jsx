@@ -98,7 +98,7 @@ export function CommandsPage() {
               <FilterInput
                 label="Пошук"
                 value={filters.search}
-                placeholder="device, room, user, result"
+                placeholder="device, room, login, result"
                 onChange={(value) => setFilters((current) => ({ ...current, search: value }))}
               />
               <FilterSelect
@@ -184,7 +184,7 @@ export function CommandsPage() {
                       </div>
 
                       <div className="mt-4 grid gap-3 md:grid-cols-3">
-                        <MetaBlock label="Користувач" value={command.requestedBy?.name || command.requestedBy?.email || "—"} />
+                        <MetaBlock label="Користувач" value={command.requestedBy?.name || command.requestedBy?.login || "—"} />
                         <MetaBlock label="Створено" value={formatDateTime(command.createdAt)} />
                         <MetaBlock label="Опубліковано" value={formatDateTime(command.publishedAt)} />
                       </div>

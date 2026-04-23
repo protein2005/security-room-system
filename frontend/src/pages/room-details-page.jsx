@@ -5,6 +5,8 @@ import { Link, useParams } from "react-router-dom";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useAuth } from "@/features/auth/auth-provider";
+import { canPerformAction } from "@/features/auth/permissions";
 import {
   armRoom,
   disarmRoom,
@@ -54,6 +56,7 @@ function RoomDetailsLoadingState() {
 
 export function RoomDetailsPage() {
   const { roomId } = useParams();
+  const { user } = useAuth();
   const queryClient = useQueryClient();
   const toast = useToast();
   const [pendingAction, setPendingAction] = useState(null);
@@ -230,6 +233,8 @@ export function RoomDetailsPage() {
     : "Пристрій для цієї кімнати ще не прив'язано";
   const stateBadgeOnline = hasAssignedDevice && !state?.offline;
   const stateBadgeText = !hasAssignedDevice ? "Не прив'язано" : state?.offline ? "Офлайн" : "Онлайн";
+  const canControlRoom = canPerformAction(user?.role, "roomControl");
+  const canManageThresholds = canPerformAction(user?.role, "roomThresholds");
 
   return (
     <div className="page-shell">
@@ -299,25 +304,31 @@ export function RoomDetailsPage() {
             <CardTitle>Дії</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid gap-3 sm:grid-cols-3">
-              <Button disabled={actionMutation.isPending} onClick={() => setPendingAction({ action: "ARM" })}>
-                {actionMutation.isPending && pendingAction?.action === "ARM" ? "Відправка..." : "Увімкнути"}
-              </Button>
-              <Button
-                variant="secondary"
-                disabled={actionMutation.isPending}
-                onClick={() => setPendingAction({ action: "DISARM" })}
-              >
-                {actionMutation.isPending && pendingAction?.action === "DISARM" ? "Відправка..." : "Вимкнути"}
-              </Button>
-              <Button
-                variant="outline"
-                disabled={actionMutation.isPending}
-                onClick={() => setPendingAction({ action: "RESET_ALARM" })}
-              >
-                {actionMutation.isPending && pendingAction?.action === "RESET_ALARM" ? "Відправка..." : "Скинути тривогу"}
-              </Button>
-            </div>
+            {canControlRoom ? (
+              <div className="grid gap-3 sm:grid-cols-3">
+                <Button disabled={actionMutation.isPending} onClick={() => setPendingAction({ action: "ARM" })}>
+                  {actionMutation.isPending && pendingAction?.action === "ARM" ? "Відправка..." : "Увімкнути"}
+                </Button>
+                <Button
+                  variant="secondary"
+                  disabled={actionMutation.isPending}
+                  onClick={() => setPendingAction({ action: "DISARM" })}
+                >
+                  {actionMutation.isPending && pendingAction?.action === "DISARM" ? "Відправка..." : "Вимкнути"}
+                </Button>
+                <Button
+                  variant="outline"
+                  disabled={actionMutation.isPending}
+                  onClick={() => setPendingAction({ action: "RESET_ALARM" })}
+                >
+                  {actionMutation.isPending && pendingAction?.action === "RESET_ALARM" ? "Відправка..." : "Скинути тривогу"}
+                </Button>
+              </div>
+            ) : (
+              <p className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-muted-foreground">
+                Для цієї ролі доступний лише перегляд стану кімнати без керуючих дій.
+              </p>
+            )}
 
             <div className="rounded-2xl bg-white/75 p-4">
               <p className="mb-3 text-sm font-semibold">Пороги спрацювання</p>
@@ -326,43 +337,49 @@ export function RoomDetailsPage() {
                   label="Мін. температура"
                   value={thresholds.tempMin}
                   onChange={(value) => updateThresholdField("tempMin", value, setThresholds, setIsThresholdFormDirty)}
+                  disabled={!canManageThresholds}
                 />
                 <ThresholdInput
                   label="Макс. температура"
                   value={thresholds.tempMax}
                   onChange={(value) => updateThresholdField("tempMax", value, setThresholds, setIsThresholdFormDirty)}
+                  disabled={!canManageThresholds}
                 />
                 <ThresholdInput
                   label="Мін. вологість"
                   value={thresholds.humidityMin}
                   onChange={(value) => updateThresholdField("humidityMin", value, setThresholds, setIsThresholdFormDirty)}
+                  disabled={!canManageThresholds}
                 />
                 <ThresholdInput
                   label="Макс. вологість"
                   value={thresholds.humidityMax}
                   onChange={(value) => updateThresholdField("humidityMax", value, setThresholds, setIsThresholdFormDirty)}
+                  disabled={!canManageThresholds}
                 />
               </div>
-              <Button
-                className="mt-4 w-full"
-                disabled={actionMutation.isPending}
-                onClick={() => {
-                  const parsedThresholds = parseThresholdForm(thresholds);
-                  if (!parsedThresholds) {
-                    toast.error(
-                      "Не вдалося зберегти пороги",
-                      "Перевір, що всі значення заповнені числами і мінімальні пороги менші за максимальні."
-                    );
-                    return;
-                  }
+              {canManageThresholds ? (
+                <Button
+                  className="mt-4 w-full"
+                  disabled={actionMutation.isPending}
+                  onClick={() => {
+                    const parsedThresholds = parseThresholdForm(thresholds);
+                    if (!parsedThresholds) {
+                      toast.error(
+                        "Не вдалося зберегти пороги",
+                        "Перевір, що всі значення заповнені числами і мінімальні пороги менші за максимальні."
+                      );
+                      return;
+                    }
 
-                  setPendingAction({ action: "SET_THRESHOLDS", payload: parsedThresholds });
-                }}
-              >
-                {actionMutation.isPending && pendingAction?.action === "SET_THRESHOLDS"
-                  ? "Відправка..."
-                  : "Зберегти пороги"}
-              </Button>
+                    setPendingAction({ action: "SET_THRESHOLDS", payload: parsedThresholds });
+                  }}
+                >
+                  {actionMutation.isPending && pendingAction?.action === "SET_THRESHOLDS"
+                    ? "Відправка..."
+                    : "Зберегти пороги"}
+                </Button>
+              ) : null}
             </div>
           </CardContent>
         </Card>
@@ -466,7 +483,7 @@ export function RoomDetailsPage() {
                 <div>
                   <p className="font-semibold">{getCommandActionTitle(command.action)}</p>
                   <p className="text-sm text-muted-foreground">
-                    {command.requestedBy?.name || command.requestedBy?.email || "Невідомий користувач"}
+                    {command.requestedBy?.name || command.requestedBy?.login || "Невідомий користувач"}
                   </p>
                   <p className="text-xs text-muted-foreground">{getCommandActionDescription(command.action)}</p>
                 </div>
@@ -488,7 +505,7 @@ export function RoomDetailsPage() {
       </Card>
 
       <ConfirmDialog
-        open={Boolean(pendingAction)}
+        open={(canControlRoom || canManageThresholds) && Boolean(pendingAction)}
         title="Підтвердити дію"
         description={
           pendingAction?.action === "SET_THRESHOLDS"
@@ -516,7 +533,7 @@ function StateRow({ label, value }) {
   );
 }
 
-function ThresholdInput({ label, value, onChange }) {
+function ThresholdInput({ label, value, onChange, disabled = false }) {
   return (
     <label className="block">
       <span className="mb-2 block text-sm font-medium">{label}</span>
@@ -524,6 +541,7 @@ function ThresholdInput({ label, value, onChange }) {
         type="number"
         step="any"
         value={value}
+        disabled={disabled}
         onChange={(event) => onChange(event.target.value)}
         className="w-full rounded-2xl border border-border bg-white px-4 py-3 outline-none ring-0 focus:border-primary"
       />

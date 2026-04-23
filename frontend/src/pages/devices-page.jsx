@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 
 import { useAuth } from "@/features/auth/auth-provider";
+import { canAccessPage, canPerformAction } from "@/features/auth/permissions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { factoryResetDevice, fetchDevices, fetchUnprovisionedDevices } from "@/shared/api/devices";
@@ -86,6 +87,8 @@ export function DevicesPage() {
 
   const isLoading = devicesQuery.isLoading || unprovisionedQuery.isLoading;
   const isError = devicesQuery.isError || unprovisionedQuery.isError;
+  const canAccessProvisioning = canAccessPage(user?.role, "provisioning");
+  const canFactoryReset = canPerformAction(user?.role, "deviceFactoryReset");
 
   return (
     <div className="page-shell">
@@ -119,11 +122,11 @@ export function DevicesPage() {
                 <EmptyState
                   title="Усі пристрої вже прив'язані"
                   description="Щойно новий ESP32 з'явиться в брокері, він потрапить у цей список."
-                  actions={
+                  actions={canAccessProvisioning ? (
                     <Button asChild variant="outline">
                       <Link to="/provisioning">Перейти до прив'язки</Link>
                     </Button>
-                  }
+                  ) : null}
                 />
               ) : (
                 unprovisioned.map((device) => (
@@ -150,11 +153,11 @@ export function DevicesPage() {
                 <EmptyState
                   title="Пристроїв ще немає"
                   description="Після першого heartbeat новий ESP32 автоматично з'явиться в реєстрі."
-                  actions={
+                  actions={canAccessProvisioning ? (
                     <Button asChild>
                       <Link to="/provisioning">Відкрити прив'язку</Link>
                     </Button>
-                  }
+                  ) : null}
                 />
               ) : (
                 <div className="space-y-3">
@@ -181,7 +184,7 @@ export function DevicesPage() {
                           online={device.provisioned}
                           text={device.provisioned ? "Прив'язано" : "Очікує"}
                         />
-                        {user?.role === "admin" ? (
+                        {canFactoryReset ? (
                           <Button
                             variant="outline"
                             disabled={factoryResetMutation.isPending}

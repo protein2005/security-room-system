@@ -2,6 +2,8 @@ import { useQuery } from "@tanstack/react-query";
 import { Activity, AlertTriangle, Cpu, DoorOpen } from "lucide-react";
 import { Link } from "react-router-dom";
 
+import { useAuth } from "@/features/auth/auth-provider";
+import { canAccessPage } from "@/features/auth/permissions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { fetchDashboardData } from "@/shared/api/dashboard";
@@ -52,6 +54,7 @@ function DashboardLoadingState() {
 }
 
 export function DashboardPage() {
+  const { user } = useAuth();
   const dashboardQuery = useQuery({
     queryKey: ["dashboard"],
     queryFn: fetchDashboardData,
@@ -64,6 +67,7 @@ export function DashboardPage() {
 
   const onlineDevices = devices.filter((item) => item.online).length;
   const assignedRooms = rooms.filter((item) => item.deviceId).length;
+  const canAccessProvisioning = canAccessPage(user?.role, "provisioning");
 
   return (
     <div className="page-shell">
@@ -122,11 +126,11 @@ export function DashboardPage() {
                   <EmptyState
                     title="Кімнат ще немає"
                     description="Створи першу кімнату та прив'яжи до неї ESP32, щоб бачити live-стан і телеметрію."
-                    actions={
+                    actions={canAccessProvisioning ? (
                       <Button asChild>
                         <Link to="/provisioning">Відкрити прив'язку</Link>
                       </Button>
-                    }
+                    ) : null}
                   />
                 ) : (
                   <div className="grid gap-3 md:grid-cols-2">
