@@ -3,9 +3,9 @@ const { validateAuthPayload } = require("../../utils/validation");
 
 async function login(req, res, next) {
   try {
-    const { email, password } = validateAuthPayload(req.body);
+    const { login, password } = validateAuthPayload(req.body);
 
-    const result = await authService.login({ email, password });
+    const result = await authService.login({ login, password });
     res.json(result);
   } catch (error) {
     next(error);

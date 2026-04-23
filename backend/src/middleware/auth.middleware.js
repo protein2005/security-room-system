@@ -15,7 +15,7 @@ async function requireAuth(req, _res, next) {
 
     req.auth = {
       userId: payload.sub,
-      email: payload.email,
+      login: payload.login,
       role: payload.role,
       name: payload.name,
     };

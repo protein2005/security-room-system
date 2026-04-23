@@ -60,14 +60,14 @@ async function createTestServer(mocks = {}) {
 
 test("POST /api/auth/login returns access token and user payload", async () => {
   const authServiceMock = {
-    async login({ email, password }) {
-      assert.equal(email, "admin@example.com");
+    async login({ login, password }) {
+      assert.equal(login, "admin");
       assert.equal(password, "secret123");
 
       return {
         accessToken: "test-token",
         user: {
-          email,
+          login,
           role: "admin",
         },
       };
@@ -89,7 +89,7 @@ test("POST /api/auth/login returns access token and user payload", async () => {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        email: "admin@example.com",
+        login: "admin",
         password: "secret123",
       }),
     });
@@ -99,7 +99,7 @@ test("POST /api/auth/login returns access token and user payload", async () => {
     const payload = await response.json();
 
     assert.equal(payload.accessToken, "test-token");
-    assert.equal(payload.user.email, "admin@example.com");
+    assert.equal(payload.user.login, "admin");
     assert.equal(payload.user.role, "admin");
   } finally {
     await server.close();
@@ -114,7 +114,7 @@ test("POST /api/provisioning/device/:deviceId uses auth context and returns 202"
       assert.equal(token, "valid-token");
       return {
         sub: "user-1",
-        email: "admin@example.com",
+        login: "admin",
         role: "admin",
         name: "Admin User",
       };
@@ -164,7 +164,7 @@ test("POST /api/provisioning/device/:deviceId uses auth context and returns 202"
       roomId: "room101",
       requestedBy: {
         userId: "user-1",
-        email: "admin@example.com",
+        login: "admin",
         role: "admin",
         name: "Admin User",
       },
@@ -181,7 +181,7 @@ test("POST /api/rooms/:roomId/arm publishes ARM command through room command ser
     verifyAccessToken() {
       return {
         sub: "user-1",
-        email: "admin@example.com",
+        login: "admin",
         role: "admin",
         name: "Admin User",
       };
@@ -238,7 +238,7 @@ test("POST /api/devices/:deviceId/factory-reset publishes FACTORY_RESET command"
     verifyAccessToken() {
       return {
         sub: "user-1",
-        email: "admin@example.com",
+        login: "admin",
         role: "admin",
         name: "Admin User",
       };
@@ -295,7 +295,7 @@ test("POST /api/devices/:deviceId/factory-reset publishes FACTORY_RESET command"
     assert.equal(captured[0].deviceId, "esp32-1");
     assert.equal(captured[0].action, "FACTORY_RESET");
     assert.deepEqual(captured[0].payload, {});
-    assert.equal(captured[0].requestedBy.email, "admin@example.com");
+    assert.equal(captured[0].requestedBy.login, "admin");
   } finally {
     await server.close();
   }

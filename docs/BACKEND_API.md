@@ -149,8 +149,8 @@ MONGODB_URI=mongodb://localhost:27017/security-room-system
 
 JWT_SECRET=security-room-system-dev-secret
 JWT_EXPIRES_IN=12h
-ADMIN_EMAIL=admin@security-room.local
-ADMIN_PASSWORD=admin12345
+ADMIN_LOGIN=admin
+ADMIN_PASSWORD=admin
 ADMIN_NAME=System Administrator
 
 MQTT_URL=mqtt://localhost:1883
@@ -174,8 +174,8 @@ Request body:
 
 ```json
 {
-  "email": "admin@security-room.local",
-  "password": "admin12345"
+  "login": "admin",
+  "password": "admin"
 }
 ```
 
@@ -186,7 +186,7 @@ Response:
   "accessToken": "<jwt>",
   "user": {
     "_id": "6801a3f6f0e5f7b7c7f70001",
-    "email": "admin@security-room.local",
+    "login": "admin",
     "name": "System Administrator",
     "role": "admin",
     "isActive": true,
@@ -201,7 +201,7 @@ Response `401`:
 
 ```json
 {
-  "message": "Invalid email or password"
+  "message": "Invalid login or password"
 }
 ```
 
@@ -220,12 +220,19 @@ Response:
 ```json
 {
   "_id": "6801a3f6f0e5f7b7c7f70001",
-  "email": "admin@security-room.local",
+  "login": "admin",
   "name": "System Administrator",
   "role": "admin",
   "isActive": true
 }
 ```
+
+Примітка:
+
+- при першому запуску backend автоматично створює дефолтний акаунт:
+  - `login: admin`
+  - `password: admin`
+  - `name: System Administrator`
 
 ## 9. REST API
 
@@ -287,7 +294,7 @@ Response example:
     },
     "requestedBy": {
       "userId": "6801a3f6f0e5f7b7c7f70001",
-      "email": "admin@security-room.local",
+      "login": "admin",
       "name": "System Administrator",
       "role": "admin"
     },
@@ -391,7 +398,7 @@ Response example:
     "action": "SET_THRESHOLDS",
     "status": "published",
     "requestedBy": {
-      "email": "operator@security-room.local",
+      "login": "operator-night",
       "name": "Night Operator",
       "role": "operator"
     },
@@ -505,13 +512,100 @@ GET /api/commands?deviceId=esp32-A3C9C8
 GET /api/commands?action=FACTORY_RESET
 ```
 
-## 9.8 Alarms
+## 9.8 Users
+
+Усі `users` endpoints вимагають `Authorization: Bearer <jwt>`.
+
+### `GET /api/users`
+
+Повертає список користувачів.
+
+Права:
+
+- лише `admin`
+
+Response example:
+
+```json
+[
+  {
+    "_id": "6801a3f6f0e5f7b7c7f70001",
+    "login": "admin",
+    "name": "System Administrator",
+    "role": "admin",
+    "isActive": true,
+    "lastLoginAt": "2026-04-18T12:00:00.000Z",
+    "createdAt": "2026-04-18T11:59:00.000Z",
+    "updatedAt": "2026-04-18T12:00:00.000Z"
+  }
+]
+```
+
+### `POST /api/users`
+
+Створює нового користувача.
+
+Права:
+
+- лише `admin`
+
+Request body:
+
+```json
+{
+  "login": "operator-night",
+  "password": "secure-pass-1",
+  "name": "Night Operator",
+  "role": "operator"
+}
+```
+
+### `PATCH /api/users/me`
+
+Оновлює профіль поточного користувача.
+
+Request body:
+
+```json
+{
+  "login": "viewer-1",
+  "name": "Main Viewer"
+}
+```
+
+Адмін також може змінити власний пароль:
+
+```json
+{
+  "currentPassword": "admin",
+  "newPassword": "new-admin-password"
+}
+```
+
+Права:
+
+- `login` і `name` може змінити будь-який авторизований користувач
+- пароль може змінювати лише `admin`
+
+### `DELETE /api/users/:userId`
+
+Видаляє користувача.
+
+Права:
+
+- лише `admin`
+
+Обмеження:
+
+- адмін не може видалити сам себе
+
+## 9.9 Alarms
 
 ### `GET /api/alarms`
 
 Глобальний список alarms.
 
-## 9.9 Events
+## 9.10 Events
 
 ### `GET /api/events`
 
@@ -527,9 +621,13 @@ GET /api/commands?action=FACTORY_RESET
 
 Поточні правила:
 
-- `viewer` може читати `devices`, `rooms`, `alarms`, `events`, `commands`
-- `operator` може виконувати room commands і provisioning
-- `admin` може все, включно з `factory reset`
+- `viewer` може читати `dashboard`, `rooms`, `room details`, `alarms`, `events`, `commands`
+- `viewer` не має доступу до `devices` і `provisioning`
+- `viewer` не може керувати кімнатами, змінювати thresholds або скидати тривогу
+- `operator` може читати всі operational сторінки, виконувати room commands і provisioning
+- `operator` не може виконувати `factory reset`
+- `operator` не може керувати користувачами
+- `admin` може все, включно з `factory reset`, керуванням користувачами і зміною власного пароля
 
 ## 11. Socket.IO Events
 
@@ -541,6 +639,7 @@ Backend шле такі події:
 - `room:telemetry`
 - `alarm:triggered`
 - `event:created`
+- `command:updated`
 
 ## 12. Структура даних у MongoDB
 
@@ -596,8 +695,36 @@ POST /api/auth/login
 Content-Type: application/json
 
 {
-  "email": "admin@security-room.local",
-  "password": "admin12345"
+  "login": "admin",
+  "password": "admin"
+}
+```
+
+### Створити користувача
+
+```http
+POST /api/users
+Authorization: Bearer <jwt>
+Content-Type: application/json
+
+{
+  "login": "viewer-1",
+  "password": "viewer-pass",
+  "name": "Main Viewer",
+  "role": "viewer"
+}
+```
+
+### Оновити свій профіль
+
+```http
+PATCH /api/users/me
+Authorization: Bearer <jwt>
+Content-Type: application/json
+
+{
+  "login": "operator-1",
+  "name": "Updated Operator"
 }
 ```
 
@@ -671,4 +798,3 @@ GET /api/devices/esp32-A3C9C8/commands
 - немає pagination metadata, лише `limit`
 - немає OpenAPI/Swagger
 - команди повертають факт успішного publish у MQTT, а не гарантію фізичного виконання на пристрої
-

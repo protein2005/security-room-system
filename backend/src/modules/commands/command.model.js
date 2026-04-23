@@ -26,6 +26,10 @@ const commandSchema = new mongoose.Schema(
         type: String,
         default: "",
       },
+      login: {
+        type: String,
+        default: "",
+      },
       email: {
         type: String,
         default: "",

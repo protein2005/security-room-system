@@ -6,6 +6,7 @@ const cookieParser = require("cookie-parser");
 
 const healthRoutes = require("./modules/health/health.routes");
 const authRoutes = require("./modules/auth/auth.routes");
+const userRoutes = require("./modules/users/user.routes");
 const deviceRoutes = require("./modules/devices/device.routes");
 const roomRoutes = require("./modules/rooms/room.routes");
 const alarmRoutes = require("./modules/alarms/alarm.routes");
@@ -40,6 +41,7 @@ function createApp() {
 
   app.use("/api/health", healthRoutes);
   app.use("/api/auth", authRoutes);
+  app.use("/api/users", userRoutes);
   app.use("/api/devices", deviceRoutes);
   app.use("/api/rooms", roomRoutes);
   app.use("/api/alarms", alarmRoutes);

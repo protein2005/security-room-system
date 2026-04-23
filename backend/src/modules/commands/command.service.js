@@ -7,7 +7,7 @@ const deviceService = require("../devices/device.service");
 function buildRequestedBy(requestedBy = {}) {
   return {
     userId: requestedBy.userId || "",
-    email: requestedBy.email || "",
+    login: requestedBy.login || "",
     name: requestedBy.name || "",
     role: requestedBy.role || "",
   };
@@ -94,7 +94,7 @@ function buildCommandFilter(filters = {}) {
       { targetRoomId: pattern },
       { action: pattern },
       { mqttTopic: pattern },
-      { "requestedBy.email": pattern },
+      { "requestedBy.login": pattern },
       { "requestedBy.name": pattern },
       { "outcome.resultStatus": pattern },
       { "outcome.resultEventName": pattern },

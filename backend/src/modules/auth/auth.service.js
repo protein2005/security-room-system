@@ -7,7 +7,7 @@ const userService = require("../users/user.service");
 function buildAuthPayload(user) {
   return {
     sub: String(user._id),
-    email: user.email,
+    login: user.login,
     role: user.role,
     name: user.name,
   };
@@ -23,11 +23,11 @@ function verifyAccessToken(token) {
   return jwt.verify(token, env.jwtSecret);
 }
 
-async function login({ email, password }) {
-  const user = await userService.getUserByEmail(email);
+async function login({ login, password }) {
+  const user = await userService.getUserByLogin(login);
 
   if (!user) {
-    const error = new Error("Invalid email or password");
+    const error = new Error("Invalid login or password");
     error.statusCode = 401;
     throw error;
   }
@@ -41,7 +41,7 @@ async function login({ email, password }) {
   const passwordMatches = await bcrypt.compare(password, user.passwordHash);
 
   if (!passwordMatches) {
-    const error = new Error("Invalid email or password");
+    const error = new Error("Invalid login or password");
     error.statusCode = 401;
     throw error;
   }

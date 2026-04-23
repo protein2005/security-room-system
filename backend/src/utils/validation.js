@@ -56,8 +56,8 @@ function parseCsv(value) {
 }
 
 function validateAuthPayload(body = {}) {
-  if (!isNonEmptyString(body.email)) {
-    throw createValidationError("email is required");
+  if (!isNonEmptyString(body.login)) {
+    throw createValidationError("login is required");
   }
 
   if (!isNonEmptyString(body.password)) {
@@ -65,9 +65,69 @@ function validateAuthPayload(body = {}) {
   }
 
   return {
-    email: body.email.trim(),
+    login: body.login.trim(),
     password: body.password,
   };
+}
+
+function validateUserCreatePayload(body = {}) {
+  if (!isNonEmptyString(body.login)) {
+    throw createValidationError("login is required");
+  }
+
+  if (!isNonEmptyString(body.password)) {
+    throw createValidationError("password is required");
+  }
+
+  if (!isNonEmptyString(body.name)) {
+    throw createValidationError("name is required");
+  }
+
+  if (!["admin", "operator", "viewer"].includes(body.role)) {
+    throw createValidationError("role must be admin, operator or viewer");
+  }
+
+  return {
+    login: body.login.trim(),
+    password: body.password,
+    name: body.name.trim(),
+    role: body.role,
+  };
+}
+
+function validateUserProfilePayload(body = {}) {
+  const payload = {};
+
+  if (body.name !== undefined) {
+    if (!isNonEmptyString(body.name)) {
+      throw createValidationError("name must be a non-empty string");
+    }
+
+    payload.name = body.name.trim();
+  }
+
+  if (body.login !== undefined) {
+    if (!isNonEmptyString(body.login)) {
+      throw createValidationError("login must be a non-empty string");
+    }
+
+    payload.login = body.login.trim();
+  }
+
+  if (body.currentPassword !== undefined || body.newPassword !== undefined) {
+    if (!isNonEmptyString(body.currentPassword)) {
+      throw createValidationError("currentPassword is required");
+    }
+
+    if (!isNonEmptyString(body.newPassword)) {
+      throw createValidationError("newPassword is required");
+    }
+
+    payload.currentPassword = body.currentPassword;
+    payload.newPassword = body.newPassword;
+  }
+
+  return payload;
 }
 
 function validateProvisioningPayload(body = {}) {
@@ -221,4 +281,6 @@ module.exports = {
   validateProvisioningPayload,
   validateRoomPayload,
   validateThresholdPayload,
+  validateUserCreatePayload,
+  validateUserProfilePayload,
 };
