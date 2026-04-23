@@ -11,12 +11,14 @@ import {
   SlidersHorizontal,
   X,
 } from "lucide-react";
-import { useMemo, useState } from "react";
-import { NavLink, Outlet, useNavigate } from "react-router-dom";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
 
 import { useAuth } from "@/features/auth/auth-provider";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/shared/lib/utils";
+import { fetchRooms } from "@/shared/api/rooms";
+import { cn, formatAlarmReason } from "@/shared/lib/utils";
+import { useQuery } from "@tanstack/react-query";
 
 const navigation = [
   { to: "/dashboard", label: "Панель", icon: LayoutDashboard },
@@ -85,8 +87,15 @@ function SidebarContent({ onNavigate, user, onLogout }) {
 
 export function AppShell() {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [alarmsOpen, setAlarmsOpen] = useState(false);
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const alarmsPanelRef = useRef(null);
+  const roomsQuery = useQuery({
+    queryKey: ["rooms"],
+    queryFn: fetchRooms,
+    staleTime: 60_000,
+  });
   const todayLabel = useMemo(
     () =>
       new Intl.DateTimeFormat("uk-UA", {
@@ -96,6 +105,42 @@ export function AppShell() {
       }).format(new Date()),
     []
   );
+  const activeAlarms = useMemo(
+    () =>
+      (roomsQuery.data || [])
+        .filter((room) => room?.alarmActive)
+        .map((room) => ({
+          _id: room._id || room.roomId,
+          roomId: room.roomId,
+          roomName: room.roomName || room.roomId,
+          reason: room.alarmReason,
+        })),
+    [roomsQuery.data]
+  );
+  const activeAlarmsCount = activeAlarms.length;
+  const hasActiveAlarms = activeAlarmsCount > 0;
+
+  useEffect(() => {
+    function handlePointerDown(event) {
+      if (alarmsPanelRef.current && !alarmsPanelRef.current.contains(event.target)) {
+        setAlarmsOpen(false);
+      }
+    }
+
+    function handleEscape(event) {
+      if (event.key === "Escape") {
+        setAlarmsOpen(false);
+      }
+    }
+
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("keydown", handleEscape);
+
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, []);
 
   function handleLogout() {
     logout();
@@ -118,9 +163,104 @@ export function AppShell() {
                   <Button variant="outline" size="icon" className="xl:hidden" onClick={() => setMobileOpen(true)}>
                     <Menu className="h-5 w-5" />
                   </Button>
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.24em] text-primary">Центр керування</p>
-                    <p className="text-sm text-muted-foreground">{todayLabel}</p>
+                  <div className="flex flex-wrap items-center gap-3">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.24em] text-primary">Центр керування</p>
+                      <p className="text-sm text-muted-foreground">{todayLabel}</p>
+                    </div>
+                    <div className="relative" ref={alarmsPanelRef}>
+                      <button
+                        type="button"
+                        onClick={() => setAlarmsOpen((current) => !current)}
+                        className={cn(
+                          "relative flex h-11 w-11 items-center justify-center rounded-2xl border shadow-sm transition hover:shadow-md",
+                          hasActiveAlarms
+                            ? "border-red-200 bg-red-50/90 text-red-950"
+                            : "border-emerald-200 bg-emerald-50/90 text-emerald-950"
+                        )}
+                        aria-label="Активні тривоги"
+                      >
+                        <div
+                          className={cn(
+                            "flex h-9 w-9 items-center justify-center rounded-xl",
+                            hasActiveAlarms ? "bg-red-100 text-red-600" : "bg-emerald-100 text-emerald-600"
+                          )}
+                        >
+                          <ShieldAlert className="h-5 w-5" />
+                        </div>
+                        <span
+                          className={cn(
+                            "absolute -right-2 -top-2 inline-flex min-w-7 items-center justify-center rounded-full px-2 py-0.5 text-xs font-semibold shadow-sm",
+                            hasActiveAlarms ? "bg-red-600 text-white" : "bg-emerald-600 text-white"
+                          )}
+                        >
+                          {roomsQuery.isLoading ? "…" : activeAlarmsCount}
+                        </span>
+                      </button>
+
+                      {alarmsOpen ? (
+                        <div className="absolute left-0 top-[calc(100%+12px)] z-40 w-[min(92vw,360px)] rounded-3xl border border-white/70 bg-white/95 p-3 shadow-2xl backdrop-blur">
+                          <div className="mb-2 flex items-center justify-between px-2 py-1">
+                            <div>
+                              <p className="text-sm font-semibold text-foreground">Активні тривоги</p>
+                              <p className="text-xs text-muted-foreground">Поточні події по кімнатах системи</p>
+                            </div>
+                            <Link
+                              to="/alarms"
+                              className="text-xs font-semibold text-primary transition hover:opacity-80"
+                              onClick={() => setAlarmsOpen(false)}
+                            >
+                              Усі тривоги
+                            </Link>
+                          </div>
+
+                          {roomsQuery.isLoading ? (
+                            <div className="rounded-2xl bg-muted/40 px-4 py-5 text-sm text-muted-foreground">
+                              Завантаження тривог...
+                            </div>
+                          ) : null}
+
+                          {roomsQuery.isError ? (
+                            <div className="rounded-2xl bg-red-50 px-4 py-5 text-sm text-red-700">
+                              Не вдалося завантажити активні тривоги.
+                            </div>
+                          ) : null}
+
+                          {!roomsQuery.isLoading && !roomsQuery.isError ? (
+                            activeAlarmsCount === 0 ? (
+                              <div className="rounded-2xl bg-emerald-50 px-4 py-5 text-sm text-emerald-700">
+                                Зараз активних тривог немає.
+                              </div>
+                            ) : (
+                              <div className="max-h-[320px] space-y-2 overflow-y-auto pr-1">
+                                {activeAlarms.map((alarm) => (
+                                  <Link
+                                    key={alarm._id}
+                                    to="/alarms"
+                                    onClick={() => setAlarmsOpen(false)}
+                                    className="block rounded-2xl border border-white/80 bg-white/90 px-4 py-3 transition hover:border-red-200 hover:bg-red-50/60"
+                                  >
+                                    <div className="flex items-start justify-between gap-3">
+                                      <div className="min-w-0">
+                                        <p className="truncate text-sm font-semibold text-foreground">
+                                          {formatAlarmReason(alarm.reason)}
+                                        </p>
+                                        <p className="mt-1 text-sm text-muted-foreground">
+                                          {alarm.roomName || alarm.roomId || "Невідома кімната"}
+                                        </p>
+                                      </div>
+                                      <span className="rounded-full bg-red-100 px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-red-700">
+                                        Тривога
+                                      </span>
+                                    </div>
+                                  </Link>
+                                ))}
+                              </div>
+                            )
+                          ) : null}
+                        </div>
+                      ) : null}
+                    </div>
                   </div>
                 </div>
 

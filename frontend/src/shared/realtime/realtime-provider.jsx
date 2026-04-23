@@ -6,6 +6,7 @@ import { useAuth } from "@/features/auth/auth-provider";
 export function RealtimeProvider({ children, queryClient }) {
   const { isAuthenticated } = useAuth();
   const dashboardRefreshTimeoutRef = useRef(null);
+  const alarmStateByRoomRef = useRef(new Map());
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -117,6 +118,25 @@ export function RealtimeProvider({ children, queryClient }) {
       });
     };
 
+    const syncAlarmState = ({ roomId, alarmActive, alarmReason, alarmSilenced }) => {
+      if (!roomId) {
+        return;
+      }
+
+      const nextSignature = JSON.stringify({
+        alarmActive: Boolean(alarmActive),
+        alarmReason: alarmReason || null,
+        alarmSilenced: Boolean(alarmSilenced),
+      });
+      const previousSignature = alarmStateByRoomRef.current.get(roomId);
+
+      alarmStateByRoomRef.current.set(roomId, nextSignature);
+
+      if (previousSignature !== undefined && previousSignature !== nextSignature) {
+        invalidateAlarms();
+      }
+    };
+
     const handleDeviceSeen = (device) => {
       updateDeviceCaches(device);
     };
@@ -127,6 +147,9 @@ export function RealtimeProvider({ children, queryClient }) {
 
     const handleRoomStateUpdated = (roomState) => {
       updateRoomCaches(roomState);
+      if (Object.hasOwn(roomState || {}, "alarmActive") || Object.hasOwn(roomState || {}, "alarmReason") || Object.hasOwn(roomState || {}, "alarmSilenced")) {
+        syncAlarmState(roomState);
+      }
     };
 
     const handleRoomTelemetry = (telemetry) => {
@@ -147,6 +170,7 @@ export function RealtimeProvider({ children, queryClient }) {
         lastTelemetryAt: telemetry.receivedAt,
         updatedAt: telemetry.receivedAt,
       });
+      syncAlarmState(telemetry);
     };
 
     const invalidateAlarms = () => {
@@ -179,6 +203,8 @@ export function RealtimeProvider({ children, queryClient }) {
         window.clearTimeout(dashboardRefreshTimeoutRef.current);
         dashboardRefreshTimeoutRef.current = null;
       }
+
+      alarmStateByRoomRef.current.clear();
 
       socket.off("device:seen", handleDeviceSeen);
       socket.off("device:status-changed", handleDeviceStatusChanged);
