@@ -1,13 +1,13 @@
 # Backend API
 
-Цей документ описує поточний backend API для `Security Room System` і пояснює, як backend працює разом з `ESP32`, `MQTT`, `MongoDB` та `Socket.IO`.
+Цей документ описує актуальний backend API для `Security Room System` і пояснює, як backend працює разом з `ESP32`, `MQTT`, `MongoDB`, `Socket.IO`, Web Push та Telegram.
 
-## 1. Загальна схема роботи
+## 1. Загальна схема
 
 Система працює так:
 
 1. `ESP32` публікує повідомлення в `MQTT broker`.
-2. Backend підписується на MQTT topics і обробляє:
+2. Backend слухає MQTT topics і обробляє:
    - `status`
    - `heartbeat`
    - `telemetry`
@@ -16,7 +16,10 @@
 3. Backend зберігає дані в `MongoDB`.
 4. Backend надає `REST API` для frontend.
 5. Backend шле `Socket.IO` події для live-оновлень.
-6. Оператори входять у систему через `JWT` і всі чутливі дії проходять через авторизацію.
+6. Користувачі входять через `JWT`.
+7. Backend також може надсилати сповіщення через:
+   - `Web Push`
+   - `Telegram`
 
 ## 2. Base URL
 
@@ -38,7 +41,7 @@ API-префікс:
 http://localhost:4000/api/health
 ```
 
-## 3. Поточні модулі backend
+## 3. Поточні backend-модулі
 
 - `health`
 - `auth`
@@ -51,10 +54,11 @@ http://localhost:4000/api/health
 - `room current state`
 - `alarms`
 - `events`
+- `push-subscriptions`
+- `telegram`
+- `system-settings`
 
-## 4. Як backend працює з MQTT
-
-Backend слухає такі topics.
+## 4. MQTT topics
 
 ### Device-level
 
@@ -69,7 +73,7 @@ Backend слухає такі topics.
 - `security/rooms/+/alarm`
 - `security/rooms/+/event`
 
-### Командні topics
+### Command topic
 
 Backend публікує команди в:
 
@@ -77,7 +81,7 @@ Backend публікує команди в:
 security/devices/<deviceId>/cmd
 ```
 
-## 5. Основна логіка по типах повідомлень
+## 5. Логіка по типах MQTT-повідомлень
 
 ### `status`
 
@@ -111,14 +115,17 @@ security/devices/<deviceId>/cmd
 
 Використовується для:
 
-- запису в колекцію `alarms`
+- запису в `alarms`
 - оновлення alarm-стану кімнати
+- відправки `Socket.IO`
+- відправки `Web Push`
+- відправки `Telegram`
 
 ### `event`
 
 Використовується для:
 
-- запису в колекцію `events`
+- запису в `events`
 - підтвердження provisioning через `DEVICE_PROVISIONED`
 - аудиту подій пристрою на кшталт `FACTORY_RESET`
 
@@ -136,7 +143,7 @@ DEVICE_OFFLINE_THRESHOLD_MS=30000
 DEVICE_OFFLINE_CHECK_INTERVAL_MS=10000
 ```
 
-## 7. Environment Variables
+## 7. Environment variables
 
 Основні змінні:
 
@@ -149,9 +156,14 @@ MONGODB_URI=mongodb://localhost:27017/security-room-system
 
 JWT_SECRET=security-room-system-dev-secret
 JWT_EXPIRES_IN=12h
+
 ADMIN_LOGIN=admin
 ADMIN_PASSWORD=admin
 ADMIN_NAME=System Administrator
+
+WEB_PUSH_SUBJECT=mailto:admin@security-room.local
+WEB_PUSH_PUBLIC_KEY=<public vapid key>
+WEB_PUSH_PRIVATE_KEY=<private vapid key>
 
 MQTT_URL=mqtt://localhost:1883
 MQTT_USERNAME=
@@ -164,9 +176,24 @@ DEVICE_OFFLINE_THRESHOLD_MS=30000
 DEVICE_OFFLINE_CHECK_INTERVAL_MS=10000
 ```
 
+Примітки:
+
+- `Telegram` бот більше не конфігурується через `.env`
+- `bot username` і `bot token` задаються адміністратором через `Settings` у UI
+- при першому запуску backend автоматично створює дефолтного адміна:
+  - `login: admin`
+  - `password: admin`
+  - `name: System Administrator`
+
 ## 8. Auth
 
-## 8.1 `POST /api/auth/login`
+Усі захищені маршрути вимагають:
+
+```text
+Authorization: Bearer <jwt>
+```
+
+### `POST /api/auth/login`
 
 Вхід у систему.
 
@@ -205,52 +232,23 @@ Response `401`:
 }
 ```
 
-## 8.2 `GET /api/auth/me`
+### `GET /api/auth/me`
 
 Повертає поточного користувача.
 
-Headers:
-
-```text
-Authorization: Bearer <jwt>
-```
-
-Response:
-
-```json
-{
-  "_id": "6801a3f6f0e5f7b7c7f70001",
-  "login": "admin",
-  "name": "System Administrator",
-  "role": "admin",
-  "isActive": true
-}
-```
-
-Примітка:
-
-- при першому запуску backend автоматично створює дефолтний акаунт:
-  - `login: admin`
-  - `password: admin`
-  - `name: System Administrator`
-
 ## 9. REST API
-
-## 9.1 Root
 
 ### `GET /`
 
 Перевірка, що backend запущений.
 
-## 9.2 Health
-
 ### `GET /api/health`
 
 Сервісний health endpoint.
 
-## 9.3 Devices
+## 10. Devices
 
-Усі `devices` endpoints вимагають `Authorization: Bearer <jwt>`.
+Усі `devices` endpoints вимагають авторизацію.
 
 ### `GET /api/devices`
 
@@ -276,35 +274,6 @@ Query params:
 Query params:
 
 - `limit=1..500`
-
-Response example:
-
-```json
-[
-  {
-    "_id": "6801a410f0e5f7b7c7f70020",
-    "targetDeviceId": "esp32-A3C9C8",
-    "targetRoomId": "room101",
-    "action": "FACTORY_RESET",
-    "payload": {
-      "deviceId": "esp32-A3C9C8",
-      "deviceToken": "room101_secure_token",
-      "action": "FACTORY_RESET",
-      "roomId": "room101"
-    },
-    "requestedBy": {
-      "userId": "6801a3f6f0e5f7b7c7f70001",
-      "login": "admin",
-      "name": "System Administrator",
-      "role": "admin"
-    },
-    "status": "published",
-    "mqttTopic": "security/devices/esp32-A3C9C8/cmd",
-    "publishedAt": "2026-04-18T12:15:00.000Z",
-    "createdAt": "2026-04-18T12:15:00.000Z"
-  }
-]
-```
 
 ### `POST /api/devices/:deviceId/factory-reset`
 
@@ -334,21 +303,13 @@ Response `202`:
 }
 ```
 
-Response `403`:
+## 11. Rooms
 
-```json
-{
-  "message": "You do not have permission to perform this action"
-}
-```
-
-## 9.4 Rooms
-
-Усі `rooms` endpoints вимагають `Authorization: Bearer <jwt>`.
+Усі `rooms` endpoints вимагають авторизацію.
 
 Права:
 
-- `GET` маршрути доступні для будь-якого авторизованого користувача
+- `GET` маршрути доступні будь-якому авторизованому користувачу
 - `POST`, `PATCH` і room commands доступні для `admin` або `operator`
 
 ### `GET /api/rooms`
@@ -387,29 +348,9 @@ Response `403`:
 
 Повертає історію команд для кімнати.
 
-Response example:
+## 12. Room commands
 
-```json
-[
-  {
-    "_id": "6801a410f0e5f7b7c7f70021",
-    "targetDeviceId": "esp32-A3C9C8",
-    "targetRoomId": "room101",
-    "action": "SET_THRESHOLDS",
-    "status": "published",
-    "requestedBy": {
-      "login": "operator-night",
-      "name": "Night Operator",
-      "role": "operator"
-    },
-    "publishedAt": "2026-04-18T12:20:00.000Z"
-  }
-]
-```
-
-## 9.5 Room Commands
-
-Ці endpoint-и не змінюють стан напряму в MongoDB. Вони відправляють MQTT-команду на прив'язаний пристрій кімнати, а вже потім backend синхронізується по відповідях `status/event/telemetry`.
+Ці endpoints не змінюють стан напряму в MongoDB. Вони відправляють MQTT-команду на прив'язаний пристрій кімнати.
 
 ### `POST /api/rooms/:roomId/arm`
 
@@ -438,26 +379,7 @@ Request body:
 }
 ```
 
-Response `202` для room commands:
-
-```json
-{
-  "success": true,
-  "topic": "security/devices/esp32-A3C9C8/cmd",
-  "payload": {
-    "deviceId": "esp32-A3C9C8",
-    "deviceToken": "room101_secure_token",
-    "action": "ARM",
-    "roomId": "room101"
-  },
-  "command": {
-    "_id": "6801a410f0e5f7b7c7f70022",
-    "status": "published"
-  }
-}
-```
-
-## 9.6 Provisioning
+## 13. Provisioning
 
 ### `POST /api/provisioning/device/:deviceId`
 
@@ -476,20 +398,7 @@ Request body:
 }
 ```
 
-Payload, який backend відправляє у broker:
-
-```json
-{
-  "deviceId": "esp32-A3C9C8",
-  "deviceToken": "room101_secure_token",
-  "action": "PROVISION",
-  "roomId": "room101",
-  "roomName": "Server Room 101",
-  "zoneType": "server_room"
-}
-```
-
-## 9.7 Commands
+## 14. Commands
 
 ### `GET /api/commands`
 
@@ -503,18 +412,9 @@ Query params:
 - `status=pending|published|failed`
 - `limit=1..500`
 
-Example:
+## 15. Users
 
-```text
-GET /api/commands
-GET /api/commands?roomId=room101
-GET /api/commands?deviceId=esp32-A3C9C8
-GET /api/commands?action=FACTORY_RESET
-```
-
-## 9.8 Users
-
-Усі `users` endpoints вимагають `Authorization: Bearer <jwt>`.
+Усі `users` endpoints вимагають авторизацію.
 
 ### `GET /api/users`
 
@@ -523,23 +423,6 @@ GET /api/commands?action=FACTORY_RESET
 Права:
 
 - лише `admin`
-
-Response example:
-
-```json
-[
-  {
-    "_id": "6801a3f6f0e5f7b7c7f70001",
-    "login": "admin",
-    "name": "System Administrator",
-    "role": "admin",
-    "isActive": true,
-    "lastLoginAt": "2026-04-18T12:00:00.000Z",
-    "createdAt": "2026-04-18T11:59:00.000Z",
-    "updatedAt": "2026-04-18T12:00:00.000Z"
-  }
-]
-```
 
 ### `POST /api/users`
 
@@ -599,19 +482,183 @@ Request body:
 
 - адмін не може видалити сам себе
 
-## 9.9 Alarms
+## 16. Alarms
 
 ### `GET /api/alarms`
 
 Глобальний список alarms.
 
-## 9.10 Events
+Типові query params:
+
+- `roomId`
+- `deviceId`
+- `reason`
+- `active=true`
+- `silenced=true|false`
+- `search`
+- `sortBy=triggeredAt|reason`
+- `sortOrder=asc|desc`
+- `limit=1..500`
+
+## 17. Events
 
 ### `GET /api/events`
 
 Глобальний список events.
 
-## 10. Авторизація і ролі
+Типові query params:
+
+- `roomId`
+- `deviceId`
+- `source`
+- `eventNames=...`
+- `search`
+- `sortBy=createdAt|eventName`
+- `sortOrder=asc|desc`
+- `limit=1..500`
+
+## 18. Push subscriptions
+
+Усі `push-subscriptions` endpoints вимагають авторизацію.
+
+### `GET /api/push-subscriptions/me`
+
+Повертає:
+
+- `publicKey` для browser subscription
+- список поточних subscriptions користувача
+
+Response example:
+
+```json
+{
+  "publicKey": "<vapid-public-key>",
+  "subscriptions": [
+    {
+      "_id": "6805c9a4f0e5f7b7c7f70111",
+      "endpoint": "https://fcm.googleapis.com/fcm/send/...",
+      "expirationTime": null,
+      "createdAt": "2026-04-23T10:00:00.000Z",
+      "updatedAt": "2026-04-23T10:00:00.000Z"
+    }
+  ]
+}
+```
+
+### `POST /api/push-subscriptions/subscribe`
+
+Зберігає або оновлює browser push subscription.
+
+Request body:
+
+```json
+{
+  "endpoint": "https://fcm.googleapis.com/fcm/send/...",
+  "expirationTime": null,
+  "keys": {
+    "p256dh": "<p256dh>",
+    "auth": "<auth>"
+  }
+}
+```
+
+### `POST /api/push-subscriptions/unsubscribe`
+
+Видаляє browser push subscription.
+
+Request body:
+
+```json
+{
+  "endpoint": "https://fcm.googleapis.com/fcm/send/...",
+  "keys": {
+    "p256dh": "<p256dh>",
+    "auth": "<auth>"
+  }
+}
+```
+
+## 19. Telegram
+
+Усі `telegram` endpoints вимагають авторизацію.
+
+### `GET /api/telegram/config`
+
+Повертає системний Telegram-конфіг.
+
+Права:
+
+- лише `admin`
+
+Response example:
+
+```json
+{
+  "isConfigured": true,
+  "botName": "security_room_alerts_bot",
+  "hasToken": true,
+  "maskedToken": "123456...ABCD"
+}
+```
+
+### `PATCH /api/telegram/config`
+
+Оновлює системний Telegram-конфіг.
+
+Права:
+
+- лише `admin`
+
+Request body:
+
+```json
+{
+  "botName": "security_room_alerts_bot",
+  "botToken": "1234567890:AAExampleToken"
+}
+```
+
+Примітки:
+
+- `botName` можна передавати з `@` або без, backend нормалізує значення
+- якщо змінити бота, усі поточні Telegram-прив'язки користувачів скидаються
+- якщо передати порожні `botName` і `botToken`, Telegram-конфіг очищається
+
+### `GET /api/telegram/me`
+
+Повертає статус Telegram для поточного користувача.
+
+Response example:
+
+```json
+{
+  "isConfigured": true,
+  "isLinked": true,
+  "isEnabled": true,
+  "botName": "security_room_alerts_bot",
+  "telegramUsername": "operator_night",
+  "linkedAt": "2026-04-24T09:15:00.000Z",
+  "linkUrl": "https://t.me/security_room_alerts_bot?start=<token>"
+}
+```
+
+### `POST /api/telegram/me/enabled`
+
+Увімкнути або вимкнути Telegram-сповіщення для поточного користувача.
+
+Request body:
+
+```json
+{
+  "enabled": true
+}
+```
+
+### `POST /api/telegram/me/unlink`
+
+Відв'язує Telegram від поточного користувача і генерує новий link token.
+
+## 20. Ролі й доступ
 
 Система підтримує ролі:
 
@@ -627,9 +674,10 @@ Request body:
 - `operator` може читати всі operational сторінки, виконувати room commands і provisioning
 - `operator` не може виконувати `factory reset`
 - `operator` не може керувати користувачами
-- `admin` може все, включно з `factory reset`, керуванням користувачами і зміною власного пароля
+- `operator` і `viewer` не можуть змінювати пароль
+- `admin` може все, включно з `factory reset`, user management і системним Telegram-конфігом
 
-## 11. Socket.IO Events
+## 21. Socket.IO events
 
 Backend шле такі події:
 
@@ -641,7 +689,7 @@ Backend шле такі події:
 - `event:created`
 - `command:updated`
 
-## 12. Структура даних у MongoDB
+## 22. MongoDB collections
 
 Основні колекції:
 
@@ -653,40 +701,22 @@ Backend шле такі події:
 - `alarms`
 - `events`
 - `commands`
+- `pushsubscriptions`
+- `systemsettings`
 
-## 13. Життєвий цикл provisioning
+## 23. Життєвий цикл Telegram-сповіщень
 
-1. `ESP32` з'являється як `UNPROVISIONED`
-2. backend створює або оновлює `Device`
-3. оператор викликає `POST /api/provisioning/device/:deviceId`
-4. backend публікує `PROVISION` у MQTT
-5. команда потрапляє в `commands`
-6. пристрій зберігає `roomId`, `roomName`, `zoneType`
-7. пристрій публікує:
-   - `DEVICE_PROVISIONED` у `event`
-   - `PROVISIONED` у `status`
-8. backend підтверджує provisioning у БД
+1. Адмін у `Settings` задає `bot username` і `bot token`
+2. Backend зберігає ці дані в `system settings`
+3. Backend запускає або продовжує `long polling`
+4. Користувач відкриває `GET /api/telegram/me` і отримує `linkUrl`
+5. Користувач відкриває deep link і натискає `Start` у боті
+6. Backend ловить `/start <token>` через long polling
+7. Backend прив'язує `chatId` до користувача
+8. При новій тривозі backend надсилає Telegram-повідомлення
+9. При `ALARM_CLEARED` backend надсилає Telegram-повідомлення про завершення
 
-## 14. Життєвий цикл room commands
-
-1. оператор викликає один із command endpoint-ів кімнати
-2. backend перевіряє `JWT`, роль, `roomId` і прив'язаний `deviceId`
-3. backend формує payload з `deviceId`, `deviceToken`, `action`, `roomId`
-4. backend створює запис у `commands`
-5. backend публікує payload у `security/devices/<deviceId>/cmd`
-6. ESP32 виконує команду
-7. backend отримує нові `status`, `event` або `telemetry` і відображає фактичний стан у БД
-
-## 15. Життєвий цикл factory reset
-
-1. `admin` викликає `POST /api/devices/:deviceId/factory-reset`
-2. backend створює запис у `commands`
-3. backend публікує `FACTORY_RESET` у MQTT
-4. пристрій очищає `Preferences` і перезапускається
-5. після повернення пристрій знову надсилає `UNPROVISIONED`
-6. backend прибирає стару прив'язку з кімнати і переводить пристрій назад у стан `unprovisioned`
-
-## 16. Типові кроки тестування
+## 24. Типові кроки тестування
 
 ### Login
 
@@ -715,31 +745,33 @@ Content-Type: application/json
 }
 ```
 
-### Оновити свій профіль
+### Налаштувати Telegram-бота
 
 ```http
-PATCH /api/users/me
-Authorization: Bearer <jwt>
+PATCH /api/telegram/config
+Authorization: Bearer <jwt-admin>
 Content-Type: application/json
 
 {
-  "login": "operator-1",
-  "name": "Updated Operator"
+  "botName": "security_room_alerts_bot",
+  "botToken": "1234567890:AAExampleToken"
 }
 ```
 
-### Створити кімнату
+### Увімкнути Web Push
 
 ```http
-POST /api/rooms
+POST /api/push-subscriptions/subscribe
 Authorization: Bearer <jwt>
 Content-Type: application/json
 
 {
-  "roomId": "room101",
-  "roomName": "Server Room 101",
-  "zoneType": "server_room",
-  "description": "Main server room"
+  "endpoint": "https://fcm.googleapis.com/fcm/send/...",
+  "expirationTime": null,
+  "keys": {
+    "p256dh": "<p256dh>",
+    "auth": "<auth>"
+  }
 }
 ```
 
@@ -781,20 +813,13 @@ Content-Type: application/json
 
 ```http
 POST /api/devices/esp32-A3C9C8/factory-reset
-Authorization: Bearer <jwt>
+Authorization: Bearer <jwt-admin>
 ```
 
-### Перевірити history команд
-
-```text
-GET /api/commands
-GET /api/rooms/room101/commands
-GET /api/devices/esp32-A3C9C8/commands
-```
-
-## 17. Поточні обмеження
+## 25. Поточні обмеження
 
 - немає refresh token flow
 - немає pagination metadata, лише `limit`
 - немає OpenAPI/Swagger
-- команди повертають факт успішного publish у MQTT, а не гарантію фізичного виконання на пристрої
+- команди повертають факт publish у MQTT, а не гарантію фізичного виконання на пристрої
+- Telegram працює через `long polling`, а не через webhook

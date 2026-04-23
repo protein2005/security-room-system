@@ -1,5 +1,9 @@
 const mongoose = require("mongoose");
 
+function createTelegramLinkToken() {
+  return new mongoose.Types.ObjectId().toString();
+}
+
 const userSchema = new mongoose.Schema(
   {
     login: {
@@ -37,6 +41,29 @@ const userSchema = new mongoose.Schema(
     lastLoginAt: {
       type: Date,
       default: null,
+    },
+    telegramChatId: {
+      type: String,
+      default: "",
+      index: true,
+    },
+    telegramUsername: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+    telegramEnabled: {
+      type: Boolean,
+      default: false,
+    },
+    telegramLinkedAt: {
+      type: Date,
+      default: null,
+    },
+    telegramLinkToken: {
+      type: String,
+      default: createTelegramLinkToken,
+      index: true,
     },
   },
   {

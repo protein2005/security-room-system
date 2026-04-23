@@ -74,6 +74,13 @@ async function listAlarms({
 }
 
 async function clearActiveAlarmsForRoom(roomId, { clearedAt = new Date() } = {}) {
+  const activeAlarms = await Alarm.find(
+    {
+      roomId,
+      isActive: true,
+    }
+  ).lean();
+
   await Alarm.updateMany(
     {
       roomId,
@@ -86,6 +93,12 @@ async function clearActiveAlarmsForRoom(roomId, { clearedAt = new Date() } = {})
       },
     }
   );
+
+  return activeAlarms.map((alarm) => ({
+    ...alarm,
+    isActive: false,
+    clearedAt,
+  }));
 }
 
 async function silenceActiveAlarmsForRoom(roomId, { silencedAt = new Date() } = {}) {

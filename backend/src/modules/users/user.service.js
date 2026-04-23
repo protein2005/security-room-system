@@ -1,4 +1,5 @@
 const bcrypt = require("bcryptjs");
+const crypto = require("crypto");
 
 const { env } = require("../../config/env");
 const { logger } = require("../../utils/logger");
@@ -16,6 +17,10 @@ function sanitizeUser(user) {
     name: user.name,
     role: user.role,
     isActive: user.isActive,
+    telegramChatId: user.telegramChatId,
+    telegramUsername: user.telegramUsername,
+    telegramEnabled: user.telegramEnabled,
+    telegramLinkedAt: user.telegramLinkedAt,
     lastLoginAt: user.lastLoginAt,
     createdAt: user.createdAt,
     updatedAt: user.updatedAt,
@@ -32,6 +37,10 @@ async function getUserByLogin(login) {
 
 async function getUserById(userId) {
   return User.findById(userId);
+}
+
+async function getUserByTelegramLinkToken(token) {
+  return User.findOne({ telegramLinkToken: token });
 }
 
 async function touchLastLogin(userId) {
@@ -68,6 +77,89 @@ async function updateUserById(userId, updates = {}) {
 
 async function deleteUserById(userId) {
   return User.findByIdAndDelete(userId);
+}
+
+async function ensureTelegramLinkToken(userId) {
+  const user = await User.findById(userId);
+
+  if (!user) {
+    return null;
+  }
+
+  if (!user.telegramLinkToken) {
+    user.telegramLinkToken = crypto.randomBytes(24).toString("hex");
+    await user.save();
+  }
+
+  return user;
+}
+
+async function linkTelegramUser(userId, { chatId, username }) {
+  return User.findByIdAndUpdate(
+    userId,
+    {
+      $set: {
+        telegramChatId: String(chatId),
+        telegramUsername: username || "",
+        telegramEnabled: true,
+        telegramLinkedAt: new Date(),
+      },
+    },
+    { new: true }
+  );
+}
+
+async function unlinkTelegramUser(userId) {
+  return User.findByIdAndUpdate(
+    userId,
+    {
+      $set: {
+        telegramChatId: "",
+        telegramUsername: "",
+        telegramEnabled: false,
+        telegramLinkedAt: null,
+        telegramLinkToken: crypto.randomBytes(24).toString("hex"),
+      },
+    },
+    { new: true }
+  );
+}
+
+async function setTelegramEnabled(userId, enabled) {
+  return User.findByIdAndUpdate(
+    userId,
+    {
+      $set: {
+        telegramEnabled: Boolean(enabled),
+      },
+    },
+    { new: true }
+  );
+}
+
+async function listTelegramEnabledUsers() {
+  return User.find({
+    telegramEnabled: true,
+    telegramChatId: { $ne: "" },
+    isActive: true,
+  });
+}
+
+async function resetTelegramLinksForAllUsers() {
+  return User.updateMany(
+    {},
+    {
+      $set: {
+        telegramChatId: "",
+        telegramUsername: "",
+        telegramEnabled: false,
+        telegramLinkedAt: null,
+      },
+      $unset: {
+        telegramLinkToken: 1,
+      },
+    }
+  );
 }
 
 async function ensureAdminUser() {
@@ -109,10 +201,17 @@ module.exports = {
   normalizeLogin,
   getUserByLogin,
   getUserById,
+  getUserByTelegramLinkToken,
   touchLastLogin,
   listUsers,
   createUser,
   updateUserById,
   deleteUserById,
+  ensureTelegramLinkToken,
+  linkTelegramUser,
+  unlinkTelegramUser,
+  setTelegramEnabled,
+  listTelegramEnabledUsers,
+  resetTelegramLinksForAllUsers,
   ensureAdminUser,
 };

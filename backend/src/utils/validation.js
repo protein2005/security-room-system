@@ -269,6 +269,73 @@ function validateMqttPayload({ topic, payload }) {
   return payload;
 }
 
+function validatePushSubscriptionPayload(body = {}) {
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    throw createValidationError("push subscription payload is required");
+  }
+
+  if (!isNonEmptyString(body.endpoint)) {
+    throw createValidationError("subscription endpoint is required");
+  }
+
+  if (!body.keys || typeof body.keys !== "object") {
+    throw createValidationError("subscription keys are required");
+  }
+
+  if (!isNonEmptyString(body.keys.p256dh) || !isNonEmptyString(body.keys.auth)) {
+    throw createValidationError("subscription keys.p256dh and keys.auth are required");
+  }
+
+  return {
+    endpoint: body.endpoint.trim(),
+    expirationTime: body.expirationTime ?? null,
+    keys: {
+      p256dh: body.keys.p256dh.trim(),
+      auth: body.keys.auth.trim(),
+    },
+  };
+}
+
+function validateTelegramEnabledPayload(body = {}) {
+  if (typeof body.enabled !== "boolean") {
+    throw createValidationError("enabled must be a boolean");
+  }
+
+  return {
+    enabled: body.enabled,
+  };
+}
+
+function validateTelegramConfigPayload(body = {}) {
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    throw createValidationError("telegram config payload is required");
+  }
+
+  const payload = {};
+
+  if (body.botName !== undefined) {
+    if (typeof body.botName !== "string") {
+      throw createValidationError("botName must be a string");
+    }
+
+    payload.botName = body.botName;
+  }
+
+  if (body.botToken !== undefined) {
+    if (typeof body.botToken !== "string") {
+      throw createValidationError("botToken must be a string");
+    }
+
+    payload.botToken = body.botToken;
+  }
+
+  if (payload.botName === undefined && payload.botToken === undefined) {
+    throw createValidationError("botName or botToken is required");
+  }
+
+  return payload;
+}
+
 module.exports = {
   createValidationError,
   parseBoolean,
@@ -278,8 +345,11 @@ module.exports = {
   validateCommandQuery,
   validateEventQuery,
   validateMqttPayload,
+  validatePushSubscriptionPayload,
+  validateTelegramConfigPayload,
   validateProvisioningPayload,
   validateRoomPayload,
+  validateTelegramEnabledPayload,
   validateThresholdPayload,
   validateUserCreatePayload,
   validateUserProfilePayload,

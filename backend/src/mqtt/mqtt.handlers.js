@@ -7,6 +7,11 @@ const {
 } = require("../modules/alarms/alarm.service");
 const { createEventEntry } = require("../modules/events/event.service");
 const { createTelemetryEntry } = require("../modules/telemetry/telemetry.service");
+const { sendAlarmPushNotifications } = require("../modules/push-subscriptions/push-subscription.service");
+const {
+  sendAlarmTelegramNotifications,
+  sendAlarmClearedTelegramNotifications,
+} = require("../modules/telegram/telegram.service");
 const { upsertRoomCurrentState } = require("../modules/room-current-state/room-current-state.service");
 const {
   acknowledgeCommandFromEvent,
@@ -179,9 +184,20 @@ async function handleStatusMessage({ payload, io }) {
         humidityMaxThreshold: payload.humidityMaxThreshold ?? null,
       })
     : null;
+  const roomName =
+    payload.roomName ||
+    room?.roomName ||
+    (payload.roomId ? (await Room.findOne({ roomId: payload.roomId }).lean())?.roomName : "") ||
+    payload.roomId ||
+    "";
 
   if (payload.roomId && payload.status === "ALARM_CLEARED") {
-    await clearActiveAlarmsForRoom(payload.roomId);
+    const clearedAlarms = await clearActiveAlarmsForRoom(payload.roomId);
+    await sendAlarmClearedTelegramNotifications({
+      alarms: clearedAlarms,
+      roomName,
+      deviceId: payload.deviceId,
+    });
   }
 
   if (payload.roomId && payload.status === "ALARM_RESET") {
@@ -341,6 +357,7 @@ async function handleAlarmMessage({ payload, io }) {
       },
     }
   );
+  const roomName = payload.roomName || (await Room.findOne({ roomId: payload.roomId }).lean())?.roomName || payload.roomId;
 
   if (device && io) {
     io.emit("device:status-changed", device);
@@ -349,6 +366,9 @@ async function handleAlarmMessage({ payload, io }) {
   if (io) {
     io.emit("alarm:triggered", alarm);
   }
+
+  await sendAlarmPushNotifications({ alarm, roomName });
+  await sendAlarmTelegramNotifications({ alarm, roomName });
 
   if (roomState && io) {
     io.emit("room:state-updated", roomState);
