@@ -33,9 +33,12 @@ async function getTelegramStatus(req, res, next) {
 async function unlinkTelegram(req, res, next) {
   try {
     const user = await userService.unlinkTelegramUser(req.auth.userId);
+    const telegramStatus = await telegramService.buildTelegramStatus(req.auth.userId);
+
     res.json({
       success: true,
       user: userService.sanitizeUser(user),
+      telegramStatus,
     });
   } catch (error) {
     next(error);

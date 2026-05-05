@@ -63,6 +63,7 @@ export function SettingsPage() {
   const [pendingDeleteUser, setPendingDeleteUser] = useState(null);
   const canManageUsers = canPerformAction(user?.role, "userManagement");
   const canChangePassword = canPerformAction(user?.role, "passwordChange");
+  const currentUserId = user?._id || "anonymous";
 
   const pushSubscriptionsQuery = useQuery({
     queryKey: ["push-subscriptions"],
@@ -70,8 +71,9 @@ export function SettingsPage() {
   });
 
   const telegramStatusQuery = useQuery({
-    queryKey: ["telegram-status"],
+    queryKey: ["telegram-status", currentUserId],
     queryFn: fetchTelegramStatus,
+    enabled: Boolean(user?._id),
   });
 
   const telegramConfigQuery = useQuery({
@@ -193,8 +195,12 @@ export function SettingsPage() {
 
   const unlinkTelegramMutation = useMutation({
     mutationFn: unlinkTelegram,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["telegram-status"] });
+    onSuccess: (result) => {
+      if (result?.telegramStatus) {
+        queryClient.setQueryData(["telegram-status", currentUserId], result.telegramStatus);
+      }
+
+      queryClient.invalidateQueries({ queryKey: ["telegram-status", currentUserId] });
       toast.success("Telegram відключено", "Бот більше не надсилатиме сповіщення цьому акаунту.");
     },
     onError: (error) => {
@@ -205,7 +211,7 @@ export function SettingsPage() {
   const toggleTelegramMutation = useMutation({
     mutationFn: updateTelegramEnabled,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["telegram-status"] });
+      queryClient.invalidateQueries({ queryKey: ["telegram-status", currentUserId] });
       toast.success("Telegram налаштовано", "Статус Telegram-сповіщень оновлено.");
     },
     onError: (error) => {

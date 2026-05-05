@@ -95,11 +95,31 @@ async function ensureTelegramLinkToken(userId) {
 }
 
 async function linkTelegramUser(userId, { chatId, username }) {
+  const normalizedChatId = String(chatId);
+
+  await User.updateMany(
+    {
+      _id: { $ne: userId },
+      telegramChatId: normalizedChatId,
+    },
+    {
+      $set: {
+        telegramChatId: "",
+        telegramUsername: "",
+        telegramEnabled: false,
+        telegramLinkedAt: null,
+      },
+      $unset: {
+        telegramLinkToken: 1,
+      },
+    }
+  );
+
   return User.findByIdAndUpdate(
     userId,
     {
       $set: {
-        telegramChatId: String(chatId),
+        telegramChatId: normalizedChatId,
         telegramUsername: username || "",
         telegramEnabled: true,
         telegramLinkedAt: new Date(),

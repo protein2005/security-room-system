@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 
 import { fetchCurrentUser, login as loginRequest } from "@/shared/api/auth";
 import { clearAccessToken, getAccessToken, setAccessToken } from "@/shared/auth/token-storage";
@@ -6,6 +7,7 @@ import { clearAccessToken, getAccessToken, setAccessToken } from "@/shared/auth/
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
+  const queryClient = useQueryClient();
   const [user, setUser] = useState(null);
   const [isReady, setIsReady] = useState(false);
   const [isAuthenticating, setIsAuthenticating] = useState(false);
@@ -42,6 +44,7 @@ export function AuthProvider({ children }) {
 
         try {
           const result = await loginRequest(credentials);
+          queryClient.clear();
           setAccessToken(result.accessToken);
           setUser(result.user);
           return result.user;
@@ -51,11 +54,12 @@ export function AuthProvider({ children }) {
       },
       logout() {
         clearAccessToken();
+        queryClient.clear();
         setUser(null);
       },
       setUser,
     }),
-    [isAuthenticating, isReady, user]
+    [isAuthenticating, isReady, queryClient, user]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
