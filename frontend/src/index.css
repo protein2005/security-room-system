@@ -1,0 +1,72 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: 205 45% 97%;
+  --foreground: 212 40% 14%;
+  --card: 0 0% 100%;
+  --card-foreground: 212 40% 14%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 212 40% 14%;
+  --primary: 208 82% 27%;
+  --primary-foreground: 200 100% 98%;
+  --secondary: 154 31% 88%;
+  --secondary-foreground: 158 62% 17%;
+  --muted: 201 22% 93%;
+  --muted-foreground: 213 15% 42%;
+  --accent: 33 95% 91%;
+  --accent-foreground: 21 92% 26%;
+  --destructive: 0 72% 51%;
+  --destructive-foreground: 210 40% 98%;
+  --border: 205 24% 84%;
+  --input: 205 24% 84%;
+  --ring: 208 82% 27%;
+  --radius: 1rem;
+}
+
+* {
+  @apply border-border;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  @apply min-h-screen bg-background text-foreground antialiased;
+  font-family: "Segoe UI Variable", "Trebuchet MS", "Avenir Next", system-ui, sans-serif;
+  background-image:
+    radial-gradient(circle at top left, rgba(37, 99, 235, 0.10), transparent 26%),
+    radial-gradient(circle at top right, rgba(245, 158, 11, 0.12), transparent 22%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.86), rgba(240, 247, 252, 0.96));
+  background-attachment: fixed;
+}
+
+#root {
+  @apply min-h-screen;
+}
+
+@layer base {
+  h1 {
+    @apply text-3xl font-semibold tracking-tight md:text-4xl;
+  }
+
+  h2 {
+    @apply text-2xl font-semibold tracking-tight;
+  }
+
+  h3 {
+    @apply text-lg font-semibold tracking-tight;
+  }
+}
+
+@layer components {
+  .page-shell {
+    @apply mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-4 sm:px-6 lg:px-8;
+  }
+
+  .glass-panel {
+    @apply rounded-3xl border border-white/70 bg-white/75 shadow-panel backdrop-blur;
+  }
+}

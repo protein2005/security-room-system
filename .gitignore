@@ -26,6 +26,11 @@ Thumbs.db
 .env
 .env.*
 
+# Node.js
+node_modules/
+dist/
+coverage/
+
 # Python cache (if later add scripts)
 __pycache__/
 *.pyc

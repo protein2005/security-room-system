@@ -1,0 +1,80 @@
+const deviceService = require("./device.service");
+const { listCommands, sendDeviceCommand } = require("../commands/command.service");
+
+async function getDevices(_req, res, next) {
+  try {
+    const devices = await deviceService.listDevices({
+      online:
+        typeof _req.query.online === "string"
+          ? _req.query.online === "true"
+          : undefined,
+      provisioned:
+        typeof _req.query.provisioned === "string"
+          ? _req.query.provisioned === "true"
+          : undefined,
+    });
+    res.json(devices);
+  } catch (error) {
+    next(error);
+  }
+}
+
+async function getUnprovisionedDevices(_req, res, next) {
+  try {
+    const devices = await deviceService.listUnprovisionedDevices();
+    res.json(devices);
+  } catch (error) {
+    next(error);
+  }
+}
+
+async function getDeviceByDeviceId(req, res, next) {
+  try {
+    const device = await deviceService.getDeviceByDeviceId(req.params.deviceId);
+
+    if (!device) {
+      return res.status(404).json({ message: "Device not found" });
+    }
+
+    res.json(device);
+  } catch (error) {
+    next(error);
+  }
+}
+
+async function getDeviceCommands(req, res, next) {
+  try {
+    const device = await deviceService.getDeviceByDeviceId(req.params.deviceId);
+
+    if (!device) {
+      return res.status(404).json({ message: "Device not found" });
+    }
+
+    const limit = Number(req.query.limit || 100);
+    const commands = await listCommands({
+      targetDeviceId: req.params.deviceId,
+      limit: Number.isFinite(limit) ? Math.min(Math.max(limit, 1), 500) : 100,
+    });
+
+    res.json(commands);
+  } catch (error) {
+    next(error);
+  }
+}
+
+async function factoryResetDevice(req, res, next) {
+  try {
+    const result = await sendDeviceCommand(req.params.deviceId, "FACTORY_RESET", {}, req.auth);
+    res.status(202).json(result);
+  } catch (error) {
+    next(error);
+  }
+}
+
+module.exports = {
+  getDevices,
+  getUnprovisionedDevices,
+  getDeviceByDeviceId,
+  getDeviceCommands,
+  factoryResetDevice,
+};
