@@ -18,13 +18,14 @@ const commandRoutes = require("./modules/commands/command.routes");
 const { notFoundMiddleware } = require("./middleware/not-found.middleware");
 const { errorMiddleware } = require("./middleware/error.middleware");
 const { env } = require("./config/env");
+const { corsOrigin } = require("./config/cors");
 
 function createApp() {
   const app = express();
 
   app.use(
     cors({
-      origin: env.clientOrigin,
+      origin: corsOrigin,
       credentials: true,
     })
   );

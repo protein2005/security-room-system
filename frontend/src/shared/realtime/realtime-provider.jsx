@@ -2,6 +2,8 @@ import { useEffect, useRef } from "react";
 import { io } from "socket.io-client";
 
 import { useAuth } from "@/features/auth/auth-provider";
+import { getSocketUrl } from "@/shared/api/config";
+import { getAccessToken } from "@/shared/auth/token-storage";
 
 export function RealtimeProvider({ children, queryClient }) {
   const { isAuthenticated } = useAuth();
@@ -13,7 +15,11 @@ export function RealtimeProvider({ children, queryClient }) {
       return undefined;
     }
 
-    const socket = io("http://localhost:4000");
+    const socket = io(getSocketUrl(), {
+      auth: {
+        token: getAccessToken(),
+      },
+    });
     const scheduleDashboardRefresh = () => {
       if (dashboardRefreshTimeoutRef.current) {
         return;

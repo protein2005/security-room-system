@@ -18,6 +18,20 @@ const styleMap = {
   info: "border-sky-200 bg-white text-slate-950",
 };
 
+function createToastId() {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+
+  if (typeof crypto !== "undefined" && typeof crypto.getRandomValues === "function") {
+    const values = new Uint32Array(2);
+    crypto.getRandomValues(values);
+    return `${Date.now().toString(36)}-${values[0].toString(36)}-${values[1].toString(36)}`;
+  }
+
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+}
+
 export function ToastProvider({ children }) {
   const [toasts, setToasts] = useState([]);
 
@@ -27,7 +41,7 @@ export function ToastProvider({ children }) {
 
   const pushToast = useCallback(
     ({ title, description, variant = "info" }) => {
-      const id = crypto.randomUUID();
+      const id = createToastId();
 
       setToasts((current) => [...current, { id, title, description, variant }]);
       window.setTimeout(() => dismissToast(id), 3500);

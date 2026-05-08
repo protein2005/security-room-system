@@ -25,6 +25,9 @@ Thumbs.db
 # Environment variables / secrets
 .env
 .env.*
+infrastructure/mosquitto/config/passwordfile
+firmware/firmware.env
+firmware/include/generated_config.h
 
 # Node.js
 node_modules/

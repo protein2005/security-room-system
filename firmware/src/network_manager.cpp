@@ -65,12 +65,23 @@ void NetworkManager::connectWiFi(SystemState &state) {
     return;
   }
 
-  Serial.println("Connecting to WiFi...");
+  Serial.print("Connecting to WiFi: ");
+  Serial.println(WIFI_SSID);
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
 
-  while (WiFi.status() != WL_CONNECTED) {
+  unsigned long startedAt = millis();
+
+  while (WiFi.status() != WL_CONNECTED && millis() - startedAt < WIFI_CONNECT_TIMEOUT_MS) {
     delay(300);
     Serial.print(".");
+  }
+
+  if (WiFi.status() != WL_CONNECTED) {
+    Serial.println();
+    Serial.print("WiFi connection failed, status=");
+    Serial.println(WiFi.status());
+    state.wifiConnected = false;
+    return;
   }
 
   Serial.println();
@@ -87,7 +98,14 @@ bool NetworkManager::connectMQTT(SystemState &state) {
 
   Serial.println("Connecting to MQTT...");
 
-  bool ok = mqttClient.connect(firmware->deviceId.c_str());
+  bool ok = false;
+
+  if (String(MQTT_USERNAME).length() > 0) {
+    ok = mqttClient.connect(firmware->deviceId.c_str(), MQTT_USERNAME, MQTT_PASSWORD);
+  } else {
+    ok = mqttClient.connect(firmware->deviceId.c_str());
+  }
+
   if (ok) {
     Serial.println("MQTT connected");
     refreshTopics();

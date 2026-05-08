@@ -1,8 +1,10 @@
 import axios from "axios";
+
 import { clearAccessToken, getAccessToken } from "@/shared/auth/token-storage";
+import { getApiBaseUrl } from "@/shared/api/config";
 
 export const http = axios.create({
-  baseURL: "http://localhost:4000/api",
+  baseURL: getApiBaseUrl(),
   timeout: 10000,
 });
 

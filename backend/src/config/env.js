@@ -16,6 +16,10 @@ const env = {
   nodeEnv: process.env.NODE_ENV || "development",
   port: Number(process.env.PORT || 4000),
   clientOrigin: process.env.CLIENT_ORIGIN || "http://localhost:5173",
+  clientOrigins: (process.env.CLIENT_ORIGINS || process.env.CLIENT_ORIGIN || "http://localhost:5173")
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter(Boolean),
   mongodbUri: requireEnv("MONGODB_URI", "mongodb://localhost:27017/security-room-system"),
   jwtSecret: requireEnv("JWT_SECRET", "security-room-system-dev-secret"),
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || "12h",
