@@ -86,7 +86,12 @@ async function ensureTelegramLinkToken(userId) {
     return null;
   }
 
-  if (!user.telegramLinkToken) {
+  const persistedUser = await User.collection.findOne(
+    { _id: user._id },
+    { projection: { telegramLinkToken: 1 } }
+  );
+
+  if (!persistedUser?.telegramLinkToken) {
     user.telegramLinkToken = crypto.randomBytes(24).toString("hex");
     await user.save();
   }
