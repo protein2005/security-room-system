@@ -11,6 +11,7 @@ router.get("/", roomController.getRooms);
 router.post("/", requireRole(["admin", "operator"]), roomController.createRoom);
 router.get("/:roomId", roomController.getRoomByRoomId);
 router.patch("/:roomId", requireRole(["admin", "operator"]), roomController.updateRoom);
+router.post("/:roomId/archive", requireRole(["admin"]), roomController.archiveRoom);
 router.get("/:roomId/state", roomController.getRoomState);
 router.get("/:roomId/telemetry", roomController.getRoomTelemetry);
 router.get("/:roomId/alarms", roomController.getRoomAlarms);

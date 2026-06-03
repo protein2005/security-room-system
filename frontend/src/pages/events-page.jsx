@@ -1,13 +1,13 @@
 import { useDeferredValue, useMemo, useState } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { fetchEvents } from "@/shared/api/events";
 import { EmptyState } from "@/shared/components/empty-state";
 import { ErrorState } from "@/shared/components/error-state";
 import { LoadingSkeleton } from "@/shared/components/loading-skeleton";
 import { SectionHeading } from "@/shared/components/section-heading";
-import { formatDateTime, formatEventName, formatEventSource } from "@/shared/lib/utils";
+import { formatDateTime, formatEventDetails, formatEventName, formatEventSource } from "@/shared/lib/utils";
 
 function EventsLoadingState() {
   return (
@@ -71,7 +71,7 @@ export function EventsPage() {
       <SectionHeading
         eyebrow="Події"
         title="Журнал подій системи"
-        description="Backend зберігає прив'язку пристроїв, локальні дії, заводське скидання та інші події аудиту. Тут вони доступні в одному потоці."
+        description="Сервер зберігає прив'язку пристроїв, локальні дії, заводське скидання та інші події аудиту. Тут вони доступні в одному потоці."
       />
 
       {eventsQuery.isLoading ? <EventsLoadingState /> : null}
@@ -94,13 +94,13 @@ export function EventsPage() {
               <FilterInput
                 label="Пошук"
                 value={filters.search}
-                placeholder="event, room, device, details"
+                placeholder="подія, кімната, пристрій, деталі"
                 onChange={(value) => setFilters((current) => ({ ...current, search: value }))}
               />
               <FilterInput
                 label="Кімната"
                 value={filters.roomId}
-                placeholder="room101"
+                placeholder="кімната-101"
                 onChange={(value) => setFilters((current) => ({ ...current, roomId: value }))}
               />
               <FilterSelect
@@ -129,6 +129,10 @@ export function EventsPage() {
           <Card>
             <CardHeader>
               <CardTitle>Усі події</CardTitle>
+              <CardDescription>
+                У кожному записі показано назву події, кімнату або пристрій, джерело події та дату з часом, коли вона
+                була зафіксована системою.
+              </CardDescription>
             </CardHeader>
             <CardContent>
               {events.length === 0 ? (
@@ -139,7 +143,7 @@ export function EventsPage() {
               ) : (
                 <div className="space-y-3">
                   {events.map((event) => (
-                    <div key={event._id} className="rounded-2xl border border-white/70 bg-white/80 p-4">
+                    <div key={event._id} className="list-item-panel">
                       <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
                         <div>
                           <p className="font-semibold">{formatEventName(event.eventName)}</p>
@@ -150,7 +154,7 @@ export function EventsPage() {
                         <p className="text-sm text-muted-foreground">{formatDateTime(event.createdAt)}</p>
                       </div>
                       <p className="mt-3 text-sm text-muted-foreground">
-                        {event.details || "Додаткові деталі для цієї події не передано."}
+                        {formatEventDetails(event.details)}
                       </p>
                     </div>
                   ))}

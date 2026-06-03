@@ -5,11 +5,11 @@ const { listAlarms } = require("../alarms/alarm.service");
 const { listEvents } = require("../events/event.service");
 
 async function listRooms() {
-  return Room.find().sort({ updatedAt: -1 }).lean();
+  return Room.find({ archived: { $ne: true } }).sort({ updatedAt: -1 }).lean();
 }
 
 async function getRoomByRoomId(roomId) {
-  return Room.findOne({ roomId }).lean();
+  return Room.findOne({ roomId, archived: { $ne: true } }).lean();
 }
 
 async function createRoom(input) {
@@ -54,12 +54,32 @@ async function clearRoomDeviceAssignment(roomId) {
   ).lean();
 }
 
+async function archiveRoom(roomId, archivedBy = "") {
+  return Room.findOneAndUpdate(
+    { roomId, archived: { $ne: true } },
+    {
+      $set: {
+        deviceId: "",
+        armed: false,
+        alarmActive: false,
+        alarmReason: "",
+        alarmSilenced: false,
+        archived: true,
+        archivedAt: new Date(),
+        archivedBy,
+      },
+    },
+    { new: true }
+  ).lean();
+}
+
 module.exports = {
   listRooms,
   getRoomByRoomId,
   createRoom,
   updateRoom,
   clearRoomDeviceAssignment,
+  archiveRoom,
   getRoomCurrentState,
   listTelemetryByRoomId,
   listRoomAlarms: (roomId, options) => listAlarms({ roomId, ...options }),

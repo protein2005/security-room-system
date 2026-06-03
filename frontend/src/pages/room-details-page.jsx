@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/features/auth/auth-provider";
 import { canPerformAction } from "@/features/auth/permissions";
 import {
@@ -28,7 +28,17 @@ import { SectionHeading } from "@/shared/components/section-heading";
 import { SparklineChart } from "@/shared/components/sparkline-chart";
 import { StatusBadge } from "@/shared/components/status-badge";
 import { useToast } from "@/shared/feedback/toast-provider";
-import { formatAlarmReason, formatCommandAction, formatDateTime, formatEventName, formatNumber, formatStatusCode } from "@/shared/lib/utils";
+import {
+  formatAlarmReason,
+  formatCommandAction,
+  formatDateTime,
+  formatEventDetails,
+  formatEventName,
+  formatEventSource,
+  formatNumber,
+  formatStatusCode,
+  formatZoneType,
+} from "@/shared/lib/utils";
 
 function RoomDetailsLoadingState() {
   return (
@@ -241,7 +251,7 @@ export function RoomDetailsPage() {
       <SectionHeading
         eyebrow="Кімната"
         title={room.roomName}
-        description={`${room.roomId} • ${room.zoneType}`}
+        description={`${room.roomId} • ${formatZoneType(room.zoneType)}`}
         actions={
           <Link
             to="/rooms"
@@ -409,6 +419,9 @@ export function RoomDetailsPage() {
         <Card>
           <CardHeader>
             <CardTitle>Тривоги кімнати</CardTitle>
+            <CardDescription>
+              Тут показані тривоги саме цієї кімнати: причина, час спрацювання та поточний стан - активна або закрита.
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             {alarms.length === 0 ? (
@@ -418,7 +431,7 @@ export function RoomDetailsPage() {
               />
             ) : (
               alarms.map((alarm) => (
-                <div key={alarm._id} className="rounded-2xl border border-rose-200 bg-rose-50 p-3">
+                <div key={alarm._id} className="list-item-panel border-rose-200 bg-rose-50">
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <p className="font-semibold text-rose-900">{formatAlarmReason(alarm.reason)}</p>
@@ -435,6 +448,9 @@ export function RoomDetailsPage() {
         <Card>
           <CardHeader>
             <CardTitle>Події кімнати</CardTitle>
+            <CardDescription>
+              Журнал фіксує системні та локальні події цієї кімнати, джерело події, час створення та додаткові деталі.
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             {events.length === 0 ? (
@@ -444,18 +460,17 @@ export function RoomDetailsPage() {
               />
             ) : (
               events.map((event) => (
-                <div key={event._id} className="rounded-2xl bg-white/80 p-3">
+                <div key={event._id} className="list-item-panel">
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <p className="font-semibold">{formatEventName(event.eventName)}</p>
                       <p className="text-xs text-muted-foreground">
-                        {event.source || "система"} • {formatDateTime(event.createdAt)}
+                        {formatEventSource(event.source)} • {formatDateTime(event.createdAt)}
                       </p>
                     </div>
-                    <StatusBadge online={!event.offline} text={event.offline ? "Офлайн" : "Активно"} />
                   </div>
                   <p className="mt-2 text-sm text-muted-foreground">
-                    {event.details || "Додаткові деталі для цієї події не передано."}
+                    {formatEventDetails(event.details)}
                   </p>
                 </div>
               ))
@@ -467,6 +482,10 @@ export function RoomDetailsPage() {
       <Card>
         <CardHeader>
           <CardTitle>Історія команд</CardTitle>
+          <CardDescription>
+            Тут видно команди, які надсилалися для кімнати, хто їх виконав, коли команда була відправлена та чи є
+            підтверджений результат.
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           {commands.length === 0 ? (
@@ -478,7 +497,7 @@ export function RoomDetailsPage() {
             commands.map((command) => (
               <div
                 key={command._id}
-                className="grid gap-3 rounded-2xl border border-white/70 bg-white/80 p-4 md:grid-cols-[1fr,1fr,auto] md:items-center"
+                className="list-item-panel grid gap-3 md:grid-cols-[1fr,1fr,auto] md:items-center"
               >
                 <div>
                   <p className="font-semibold">{getCommandActionTitle(command.action)}</p>

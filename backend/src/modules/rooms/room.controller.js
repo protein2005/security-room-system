@@ -1,5 +1,7 @@
 const roomService = require("./room.service");
+const deviceService = require("../devices/device.service");
 const { listCommands, sendRoomCommand } = require("../commands/command.service");
+const { upsertRoomCurrentState } = require("../room-current-state/room-current-state.service");
 const { parseLimit, validateRoomPayload, validateThresholdPayload } = require("../../utils/validation");
 
 async function getRooms(_req, res, next) {
@@ -53,6 +55,35 @@ async function updateRoom(req, res, next) {
     }
 
     res.json(room);
+  } catch (error) {
+    next(error);
+  }
+}
+
+async function archiveRoom(req, res, next) {
+  try {
+    const room = await roomService.getRoomByRoomId(req.params.roomId);
+
+    if (!room) {
+      return res.status(404).json({ message: "Room not found" });
+    }
+
+    if (room.deviceId) {
+      await deviceService.clearDeviceRoomAssignment(room.deviceId);
+    }
+
+    const archivedRoom = await roomService.archiveRoom(req.params.roomId, req.auth?.login || req.auth?.userId || "");
+
+    await upsertRoomCurrentState(req.params.roomId, {
+      deviceId: "",
+      armed: false,
+      alarmActive: false,
+      alarmReason: "",
+      alarmSilenced: false,
+      offline: true,
+    });
+
+    res.json(archivedRoom);
   } catch (error) {
     next(error);
   }
@@ -205,6 +236,7 @@ module.exports = {
   getRoomByRoomId,
   createRoom,
   updateRoom,
+  archiveRoom,
   getRoomState,
   getRoomTelemetry,
   getRoomAlarms,

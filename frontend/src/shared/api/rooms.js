@@ -61,3 +61,8 @@ export async function updateRoomThresholds(roomId, payload) {
   const response = await http.post(`/rooms/${roomId}/thresholds`, payload);
   return response.data;
 }
+
+export async function archiveRoom(roomId) {
+  const response = await http.post(`/rooms/${roomId}/archive`);
+  return response.data;
+}

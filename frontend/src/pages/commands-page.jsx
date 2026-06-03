@@ -1,7 +1,7 @@
 import { useDeferredValue, useMemo, useState } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { fetchCommands } from "@/shared/api/commands";
 import { EmptyState } from "@/shared/components/empty-state";
 import { ErrorState } from "@/shared/components/error-state";
@@ -152,6 +152,10 @@ export function CommandsPage() {
           <Card>
             <CardHeader>
               <CardTitle>Команди</CardTitle>
+              <CardDescription>
+                Статус показує, чи команду вже відправлено та підтверджено пристроєм. Результат означає, що система
+                знайшла подію або статус, які підтверджують виконання команди.
+              </CardDescription>
             </CardHeader>
             <CardContent>
               {commands.length === 0 ? (
@@ -162,7 +166,7 @@ export function CommandsPage() {
               ) : (
                 <div className="space-y-3">
                   {commands.map((command) => (
-                    <div key={command._id} className="rounded-2xl border border-white/70 bg-white/80 p-4">
+                    <div key={command._id} className="list-item-panel">
                       <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                         <div>
                           <p className="font-semibold">{getCommandActionTitle(command.action)}</p>

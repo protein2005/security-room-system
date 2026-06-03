@@ -5,7 +5,7 @@ import { useAuth } from "@/features/auth/auth-provider";
 import { canAccessPage, canPerformAction } from "@/features/auth/permissions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { factoryResetDevice, fetchDevices, fetchUnprovisionedDevices } from "@/shared/api/devices";
+import { archiveDevice, detachDevice, factoryResetDevice, fetchDevices, fetchUnprovisionedDevices } from "@/shared/api/devices";
 import { ConfirmDialog } from "@/shared/components/confirm-dialog";
 import { EmptyState } from "@/shared/components/empty-state";
 import { ErrorState } from "@/shared/components/error-state";
@@ -55,6 +55,8 @@ export function DevicesPage() {
   const toast = useToast();
   const queryClient = useQueryClient();
   const [pendingFactoryReset, setPendingFactoryReset] = useState(null);
+  const [pendingDetachDevice, setPendingDetachDevice] = useState(null);
+  const [pendingArchiveDevice, setPendingArchiveDevice] = useState(null);
 
   const devicesQuery = useQuery({
     queryKey: ["devices"],
@@ -82,6 +84,36 @@ export function DevicesPage() {
     },
   });
 
+  const detachDeviceMutation = useMutation({
+    mutationFn: detachDevice,
+    onSuccess: (_device, deviceId) => {
+      setPendingDetachDevice(null);
+      queryClient.invalidateQueries({ queryKey: ["devices"] });
+      queryClient.invalidateQueries({ queryKey: ["devices", "unprovisioned"] });
+      queryClient.invalidateQueries({ queryKey: ["rooms"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      toast.success("Пристрій відв'язано", `Пристрій ${deviceId} більше не прив'язаний до кімнати.`);
+    },
+    onError: (error) => {
+      toast.error("Не вдалося відв'язати пристрій", error?.response?.data?.message || "Спробуй ще раз.");
+    },
+  });
+
+  const archiveDeviceMutation = useMutation({
+    mutationFn: archiveDevice,
+    onSuccess: (_device, deviceId) => {
+      setPendingArchiveDevice(null);
+      queryClient.invalidateQueries({ queryKey: ["devices"] });
+      queryClient.invalidateQueries({ queryKey: ["devices", "unprovisioned"] });
+      queryClient.invalidateQueries({ queryKey: ["rooms"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      toast.success("Пристрій архівовано", `Пристрій ${deviceId} більше не показується в активних списках.`);
+    },
+    onError: (error) => {
+      toast.error("Не вдалося архівувати пристрій", error?.response?.data?.message || "Спробуй ще раз.");
+    },
+  });
+
   const devices = devicesQuery.data || [];
   const unprovisioned = unprovisionedQuery.data || [];
 
@@ -89,6 +121,8 @@ export function DevicesPage() {
   const isError = devicesQuery.isError || unprovisionedQuery.isError;
   const canAccessProvisioning = canAccessPage(user?.role, "provisioning");
   const canFactoryReset = canPerformAction(user?.role, "deviceFactoryReset");
+  const canDetachDevice = canPerformAction(user?.role, "deviceDetach");
+  const canArchiveDevice = canPerformAction(user?.role, "deviceArchive");
 
   return (
     <div className="page-shell">
@@ -130,7 +164,7 @@ export function DevicesPage() {
                 />
               ) : (
                 unprovisioned.map((device) => (
-                  <div key={device._id} className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                  <div key={device._id} className="list-item-panel border-amber-200 bg-amber-50">
                     <p className="font-semibold text-amber-900">{device.deviceId}</p>
                     <p className="mt-1 text-sm text-amber-800">
                       {device.firmwareVersion || "Немає даних про прошивку"}
@@ -138,6 +172,16 @@ export function DevicesPage() {
                     <p className="mt-2 text-xs text-amber-700">
                       Остання активність: {formatDateTime(device.lastSeenAt)}
                     </p>
+                    {canArchiveDevice ? (
+                      <Button
+                        className="mt-3 w-full border-amber-300 bg-white/80"
+                        variant="outline"
+                        disabled={archiveDeviceMutation.isPending}
+                        onClick={() => setPendingArchiveDevice(device)}
+                      >
+                        Архівувати
+                      </Button>
+                    ) : null}
                   </div>
                 ))
               )}
@@ -164,7 +208,7 @@ export function DevicesPage() {
                   {devices.map((device) => (
                     <div
                       key={device._id}
-                      className="grid gap-4 rounded-2xl border border-white/70 bg-white/80 p-4 md:grid-cols-[1.4fr,0.9fr,0.9fr,auto] md:items-center"
+                      className="list-item-panel grid gap-4 md:grid-cols-[1.4fr,0.9fr,0.9fr,auto] md:items-center"
                     >
                       <div>
                         <p className="font-semibold">{device.deviceId}</p>
@@ -195,6 +239,24 @@ export function DevicesPage() {
                               : "Заводське скидання"}
                           </Button>
                         ) : null}
+                        {canDetachDevice && device.currentRoomId ? (
+                          <Button
+                            variant="outline"
+                            disabled={detachDeviceMutation.isPending}
+                            onClick={() => setPendingDetachDevice(device)}
+                          >
+                            Відв'язати
+                          </Button>
+                        ) : null}
+                        {canArchiveDevice ? (
+                          <Button
+                            variant="outline"
+                            disabled={archiveDeviceMutation.isPending}
+                            onClick={() => setPendingArchiveDevice(device)}
+                          >
+                            Архівувати
+                          </Button>
+                        ) : null}
                       </div>
                     </div>
                   ))}
@@ -219,6 +281,40 @@ export function DevicesPage() {
         onConfirm={() => {
           if (!pendingFactoryReset) return;
           factoryResetMutation.mutate(pendingFactoryReset.deviceId);
+        }}
+      />
+
+      <ConfirmDialog
+        open={Boolean(pendingDetachDevice)}
+        title="Відв'язати пристрій"
+        description={
+          pendingDetachDevice
+            ? `Відв'язати пристрій ${pendingDetachDevice.deviceId} від кімнати ${pendingDetachDevice.currentRoomId}? Історія подій і команд залишиться в журналі.`
+            : "Відв'язати пристрій?"
+        }
+        confirmLabel="Так, відв'язати"
+        loading={detachDeviceMutation.isPending}
+        onCancel={() => setPendingDetachDevice(null)}
+        onConfirm={() => {
+          if (!pendingDetachDevice) return;
+          detachDeviceMutation.mutate(pendingDetachDevice.deviceId);
+        }}
+      />
+
+      <ConfirmDialog
+        open={Boolean(pendingArchiveDevice)}
+        title="Архівувати пристрій"
+        description={
+          pendingArchiveDevice
+            ? `Архівувати пристрій ${pendingArchiveDevice.deviceId}? Він зникне з активних списків, але журнали подій, тривог і команд залишаться.`
+            : "Архівувати пристрій?"
+        }
+        confirmLabel="Так, архівувати"
+        loading={archiveDeviceMutation.isPending}
+        onCancel={() => setPendingArchiveDevice(null)}
+        onConfirm={() => {
+          if (!pendingArchiveDevice) return;
+          archiveDeviceMutation.mutate(pendingArchiveDevice.deviceId);
         }}
       />
     </div>

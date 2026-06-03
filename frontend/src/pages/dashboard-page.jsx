@@ -135,7 +135,7 @@ export function DashboardPage() {
                 ) : (
                   <div className="grid gap-3 md:grid-cols-2">
                     {rooms.slice(0, 6).map((room) => (
-                      <div key={room.roomId} className="rounded-2xl border border-white/70 bg-white/80 p-4">
+                      <div key={room.roomId} className="list-item-panel">
                         <div className="flex items-start justify-between gap-3">
                           <div>
                             <p className="text-sm font-semibold">{room.roomName}</p>
@@ -176,7 +176,7 @@ export function DashboardPage() {
                     />
                   ) : (
                     events.slice(0, 5).map((event) => (
-                      <div key={event._id} className="rounded-2xl bg-white/80 p-3">
+                      <div key={event._id} className="list-item-panel">
                         <p className="text-sm font-semibold">{formatEventName(event.eventName)}</p>
                         <p className="text-xs text-muted-foreground">
                           {event.roomId || "система"} • {formatDateTime(event.createdAt)}

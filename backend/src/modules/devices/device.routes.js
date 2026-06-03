@@ -11,6 +11,8 @@ router.get("/", deviceController.getDevices);
 router.get("/unprovisioned", deviceController.getUnprovisionedDevices);
 router.get("/:deviceId/commands", deviceController.getDeviceCommands);
 router.post("/:deviceId/factory-reset", requireRole(["admin"]), deviceController.factoryResetDevice);
+router.post("/:deviceId/detach", requireRole(["admin"]), deviceController.detachDevice);
+router.post("/:deviceId/archive", requireRole(["admin"]), deviceController.archiveDevice);
 router.get("/:deviceId", deviceController.getDeviceByDeviceId);
 
 module.exports = router;

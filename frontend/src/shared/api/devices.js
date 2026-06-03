@@ -15,6 +15,16 @@ export async function factoryResetDevice(deviceId) {
   return response.data;
 }
 
+export async function detachDevice(deviceId) {
+  const response = await http.post(`/devices/${deviceId}/detach`);
+  return response.data;
+}
+
+export async function archiveDevice(deviceId) {
+  const response = await http.post(`/devices/${deviceId}/archive`);
+  return response.data;
+}
+
 export async function fetchDeviceCommands(deviceId, limit = 20) {
   const response = await http.get(`/devices/${deviceId}/commands`, {
     params: { limit },

@@ -1,14 +1,19 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ChevronRight } from "lucide-react";
 import { Link } from "react-router-dom";
+import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { fetchRooms } from "@/shared/api/rooms";
+import { useAuth } from "@/features/auth/auth-provider";
+import { canPerformAction } from "@/features/auth/permissions";
+import { archiveRoom, fetchRooms } from "@/shared/api/rooms";
+import { ConfirmDialog } from "@/shared/components/confirm-dialog";
 import { EmptyState } from "@/shared/components/empty-state";
 import { ErrorState } from "@/shared/components/error-state";
 import { LoadingSkeleton } from "@/shared/components/loading-skeleton";
 import { SectionHeading } from "@/shared/components/section-heading";
+import { useToast } from "@/shared/feedback/toast-provider";
 import { formatAlarmReason, formatDateTime, formatZoneType } from "@/shared/lib/utils";
 
 function RoomsLoadingState() {
@@ -36,12 +41,31 @@ function RoomsLoadingState() {
 }
 
 export function RoomsPage() {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+  const toast = useToast();
+  const [pendingArchiveRoom, setPendingArchiveRoom] = useState(null);
   const roomsQuery = useQuery({
     queryKey: ["rooms"],
     queryFn: fetchRooms,
   });
 
   const rooms = roomsQuery.data || [];
+  const canArchiveRoom = canPerformAction(user?.role, "roomArchive");
+
+  const archiveRoomMutation = useMutation({
+    mutationFn: archiveRoom,
+    onSuccess: (_room, roomId) => {
+      setPendingArchiveRoom(null);
+      queryClient.invalidateQueries({ queryKey: ["rooms"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      queryClient.invalidateQueries({ queryKey: ["devices"] });
+      toast.success("Кімнату архівовано", `Кімната ${roomId} більше не показується в активних списках.`);
+    },
+    onError: (error) => {
+      toast.error("Не вдалося архівувати кімнату", error?.response?.data?.message || "Спробуй ще раз.");
+    },
+  });
 
   return (
     <div className="page-shell">
@@ -102,7 +126,7 @@ export function RoomsPage() {
                     </div>
                   </div>
 
-                  <div className="mt-auto">
+                  <div className="mt-auto space-y-2">
                     <Link
                       to={`/rooms/${room.roomId}`}
                       className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-primary px-4 py-2.5 font-medium text-primary-foreground shadow-panel transition hover:opacity-95"
@@ -110,6 +134,16 @@ export function RoomsPage() {
                       Відкрити кімнату
                       <ChevronRight className="h-4 w-4" />
                     </Link>
+                    {canArchiveRoom ? (
+                      <Button
+                        className="w-full"
+                        variant="outline"
+                        disabled={archiveRoomMutation.isPending}
+                        onClick={() => setPendingArchiveRoom(room)}
+                      >
+                        Архівувати
+                      </Button>
+                    ) : null}
                   </div>
                 </CardContent>
               </Card>
@@ -117,6 +151,23 @@ export function RoomsPage() {
           </div>
         )
       ) : null}
+
+      <ConfirmDialog
+        open={Boolean(pendingArchiveRoom)}
+        title="Архівувати кімнату"
+        description={
+          pendingArchiveRoom
+            ? `Архівувати кімнату ${pendingArchiveRoom.roomName}? Вона зникне з активних списків, а історія подій, тривог і команд залишиться в журналі.`
+            : "Архівувати кімнату?"
+        }
+        confirmLabel="Так, архівувати"
+        loading={archiveRoomMutation.isPending}
+        onCancel={() => setPendingArchiveRoom(null)}
+        onConfirm={() => {
+          if (!pendingArchiveRoom) return;
+          archiveRoomMutation.mutate(pendingArchiveRoom.roomId);
+        }}
+      />
     </div>
   );
 }

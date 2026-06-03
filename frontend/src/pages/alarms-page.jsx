@@ -1,7 +1,7 @@
 import { useDeferredValue, useMemo, useState } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { fetchAlarms } from "@/shared/api/alarms";
 import { EmptyState } from "@/shared/components/empty-state";
 import { ErrorState } from "@/shared/components/error-state";
@@ -154,6 +154,10 @@ export function AlarmsPage() {
           <Card>
             <CardHeader>
               <CardTitle>Усі тривоги</CardTitle>
+              <CardDescription>
+                Статус “Активна” означає, що тривога ще не скинута, а “Закрита” - що її завершено. “У роботі” означає
+                звичайний режим сповіщення, “Приглушена” - звук або сигнал тимчасово вимкнено.
+              </CardDescription>
             </CardHeader>
             <CardContent>
               {alarms.length === 0 ? (
@@ -166,7 +170,7 @@ export function AlarmsPage() {
                   {alarms.map((alarm) => (
                     <div
                       key={alarm._id}
-                      className="grid gap-3 rounded-2xl border border-white/70 bg-white/80 p-4 md:grid-cols-[1.2fr,1fr,auto] md:items-center"
+                      className="list-item-panel grid gap-3 md:grid-cols-[1.2fr,1fr,auto] md:items-center"
                     >
                       <div>
                         <p className="font-semibold">{formatAlarmReason(alarm.reason)}</p>

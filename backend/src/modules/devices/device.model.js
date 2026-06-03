@@ -46,6 +46,19 @@ const deviceSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+    archived: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    archivedAt: {
+      type: Date,
+      default: null,
+    },
+    archivedBy: {
+      type: String,
+      default: "",
+    },
   },
   {
     timestamps: true,

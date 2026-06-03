@@ -1,5 +1,7 @@
 const deviceService = require("./device.service");
+const roomService = require("../rooms/room.service");
 const { listCommands, sendDeviceCommand } = require("../commands/command.service");
+const { upsertRoomCurrentState } = require("../room-current-state/room-current-state.service");
 
 async function getDevices(_req, res, next) {
   try {
@@ -71,10 +73,66 @@ async function factoryResetDevice(req, res, next) {
   }
 }
 
+async function detachDevice(req, res, next) {
+  try {
+    const device = await deviceService.getDeviceByDeviceId(req.params.deviceId);
+
+    if (!device) {
+      return res.status(404).json({ message: "Device not found" });
+    }
+
+    if (device.currentRoomId) {
+      await roomService.clearRoomDeviceAssignment(device.currentRoomId);
+      await upsertRoomCurrentState(device.currentRoomId, {
+        deviceId: "",
+        armed: false,
+        alarmActive: false,
+        alarmReason: "",
+        alarmSilenced: false,
+        offline: true,
+      });
+    }
+
+    const updatedDevice = await deviceService.clearDeviceRoomAssignment(req.params.deviceId);
+    res.json(updatedDevice);
+  } catch (error) {
+    next(error);
+  }
+}
+
+async function archiveDevice(req, res, next) {
+  try {
+    const device = await deviceService.getDeviceByDeviceId(req.params.deviceId);
+
+    if (!device) {
+      return res.status(404).json({ message: "Device not found" });
+    }
+
+    if (device.currentRoomId) {
+      await roomService.clearRoomDeviceAssignment(device.currentRoomId);
+      await upsertRoomCurrentState(device.currentRoomId, {
+        deviceId: "",
+        armed: false,
+        alarmActive: false,
+        alarmReason: "",
+        alarmSilenced: false,
+        offline: true,
+      });
+    }
+
+    const archivedDevice = await deviceService.archiveDevice(req.params.deviceId, req.auth?.login || req.auth?.userId || "");
+    res.json(archivedDevice);
+  } catch (error) {
+    next(error);
+  }
+}
+
 module.exports = {
   getDevices,
   getUnprovisionedDevices,
   getDeviceByDeviceId,
   getDeviceCommands,
   factoryResetDevice,
+  detachDevice,
+  archiveDevice,
 };

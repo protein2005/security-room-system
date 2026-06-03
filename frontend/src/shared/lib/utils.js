@@ -38,6 +38,29 @@ export function formatEventName(eventName) {
   return eventName.replaceAll("_", " ");
 }
 
+export function formatEventDetails(details) {
+  if (!details) {
+    return "Додаткові деталі для цієї події не передано.";
+  }
+
+  if (details === "Physical ARM button pressed") return "Натиснуто фізичну кнопку увімкнення охорони.";
+  if (details === "Physical DISARM button pressed") return "Натиснуто фізичну кнопку вимкнення охорони.";
+  if (details === "Physical RESET ALARM button pressed") return "Натиснуто фізичну кнопку скидання або приглушення тривоги.";
+  if (details === "ARM button press ignored while already armed") {
+    return "Натискання кнопки охорони проігноровано, бо охорону вже увімкнено.";
+  }
+  if (details === "Device was provisioned from backend") return "Пристрій прив'язано через сервер.";
+  if (details === "Factory reset requested") return "Запитано заводське скидання пристрою.";
+
+  return details
+    .replaceAll("RESET_ALARM", "скидання тривоги")
+    .replaceAll("FACTORY_RESET", "заводське скидання")
+    .replaceAll("DISARM", "вимкнення охорони")
+    .replaceAll("ARM", "увімкнення охорони")
+    .replaceAll("button pressed", "кнопку натиснуто")
+    .replaceAll("_", " ");
+}
+
 export function formatAlarmReason(reason) {
   if (!reason) {
     return "Тривога";
