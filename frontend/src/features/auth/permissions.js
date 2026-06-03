@@ -14,7 +14,6 @@ const actionRoles = {
   roomControl: ["admin", "operator"],
   roomThresholds: ["admin", "operator"],
   deviceFactoryReset: ["admin"],
-  deviceDetach: ["admin"],
   deviceArchive: ["admin"],
   roomArchive: ["admin"],
   provisioning: ["admin", "operator"],

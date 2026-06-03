@@ -73,39 +73,16 @@ async function factoryResetDevice(req, res, next) {
   }
 }
 
-async function detachDevice(req, res, next) {
-  try {
-    const device = await deviceService.getDeviceByDeviceId(req.params.deviceId);
-
-    if (!device) {
-      return res.status(404).json({ message: "Device not found" });
-    }
-
-    if (device.currentRoomId) {
-      await roomService.clearRoomDeviceAssignment(device.currentRoomId);
-      await upsertRoomCurrentState(device.currentRoomId, {
-        deviceId: "",
-        armed: false,
-        alarmActive: false,
-        alarmReason: "",
-        alarmSilenced: false,
-        offline: true,
-      });
-    }
-
-    const updatedDevice = await deviceService.clearDeviceRoomAssignment(req.params.deviceId);
-    res.json(updatedDevice);
-  } catch (error) {
-    next(error);
-  }
-}
-
 async function archiveDevice(req, res, next) {
   try {
     const device = await deviceService.getDeviceByDeviceId(req.params.deviceId);
 
     if (!device) {
       return res.status(404).json({ message: "Device not found" });
+    }
+
+    if (device.online) {
+      return res.status(409).json({ message: "Онлайн-пристрій не можна архівувати" });
     }
 
     if (device.currentRoomId) {
@@ -133,6 +110,5 @@ module.exports = {
   getDeviceByDeviceId,
   getDeviceCommands,
   factoryResetDevice,
-  detachDevice,
   archiveDevice,
 };

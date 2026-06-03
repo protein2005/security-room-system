@@ -5,7 +5,7 @@ import { useAuth } from "@/features/auth/auth-provider";
 import { canAccessPage, canPerformAction } from "@/features/auth/permissions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { archiveDevice, detachDevice, factoryResetDevice, fetchDevices, fetchUnprovisionedDevices } from "@/shared/api/devices";
+import { archiveDevice, factoryResetDevice, fetchDevices, fetchUnprovisionedDevices } from "@/shared/api/devices";
 import { ConfirmDialog } from "@/shared/components/confirm-dialog";
 import { EmptyState } from "@/shared/components/empty-state";
 import { ErrorState } from "@/shared/components/error-state";
@@ -55,7 +55,6 @@ export function DevicesPage() {
   const toast = useToast();
   const queryClient = useQueryClient();
   const [pendingFactoryReset, setPendingFactoryReset] = useState(null);
-  const [pendingDetachDevice, setPendingDetachDevice] = useState(null);
   const [pendingArchiveDevice, setPendingArchiveDevice] = useState(null);
 
   const devicesQuery = useQuery({
@@ -84,21 +83,6 @@ export function DevicesPage() {
     },
   });
 
-  const detachDeviceMutation = useMutation({
-    mutationFn: detachDevice,
-    onSuccess: (_device, deviceId) => {
-      setPendingDetachDevice(null);
-      queryClient.invalidateQueries({ queryKey: ["devices"] });
-      queryClient.invalidateQueries({ queryKey: ["devices", "unprovisioned"] });
-      queryClient.invalidateQueries({ queryKey: ["rooms"] });
-      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
-      toast.success("Пристрій відв'язано", `Пристрій ${deviceId} більше не прив'язаний до кімнати.`);
-    },
-    onError: (error) => {
-      toast.error("Не вдалося відв'язати пристрій", error?.response?.data?.message || "Спробуй ще раз.");
-    },
-  });
-
   const archiveDeviceMutation = useMutation({
     mutationFn: archiveDevice,
     onSuccess: (_device, deviceId) => {
@@ -121,7 +105,6 @@ export function DevicesPage() {
   const isError = devicesQuery.isError || unprovisionedQuery.isError;
   const canAccessProvisioning = canAccessPage(user?.role, "provisioning");
   const canFactoryReset = canPerformAction(user?.role, "deviceFactoryReset");
-  const canDetachDevice = canPerformAction(user?.role, "deviceDetach");
   const canArchiveDevice = canPerformAction(user?.role, "deviceArchive");
 
   return (
@@ -176,10 +159,10 @@ export function DevicesPage() {
                       <Button
                         className="mt-3 w-full border-amber-300 bg-white/80"
                         variant="outline"
-                        disabled={archiveDeviceMutation.isPending}
+                        disabled={archiveDeviceMutation.isPending || device.online}
                         onClick={() => setPendingArchiveDevice(device)}
                       >
-                        Архівувати
+                        {device.online ? "Онлайн - не архівується" : "Архівувати"}
                       </Button>
                     ) : null}
                   </div>
@@ -239,22 +222,13 @@ export function DevicesPage() {
                               : "Заводське скидання"}
                           </Button>
                         ) : null}
-                        {canDetachDevice && device.currentRoomId ? (
-                          <Button
-                            variant="outline"
-                            disabled={detachDeviceMutation.isPending}
-                            onClick={() => setPendingDetachDevice(device)}
-                          >
-                            Відв'язати
-                          </Button>
-                        ) : null}
                         {canArchiveDevice ? (
                           <Button
                             variant="outline"
-                            disabled={archiveDeviceMutation.isPending}
+                            disabled={archiveDeviceMutation.isPending || device.online}
                             onClick={() => setPendingArchiveDevice(device)}
                           >
-                            Архівувати
+                            {device.online ? "Онлайн - не архівується" : "Архівувати"}
                           </Button>
                         ) : null}
                       </div>
@@ -281,23 +255,6 @@ export function DevicesPage() {
         onConfirm={() => {
           if (!pendingFactoryReset) return;
           factoryResetMutation.mutate(pendingFactoryReset.deviceId);
-        }}
-      />
-
-      <ConfirmDialog
-        open={Boolean(pendingDetachDevice)}
-        title="Відв'язати пристрій"
-        description={
-          pendingDetachDevice
-            ? `Відв'язати пристрій ${pendingDetachDevice.deviceId} від кімнати ${pendingDetachDevice.currentRoomId}? Історія подій і команд залишиться в журналі.`
-            : "Відв'язати пристрій?"
-        }
-        confirmLabel="Так, відв'язати"
-        loading={detachDeviceMutation.isPending}
-        onCancel={() => setPendingDetachDevice(null)}
-        onConfirm={() => {
-          if (!pendingDetachDevice) return;
-          detachDeviceMutation.mutate(pendingDetachDevice.deviceId);
         }}
       />
 
